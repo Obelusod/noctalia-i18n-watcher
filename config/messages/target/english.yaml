@@ -1,0 +1,60 @@
+added:
+  title: "[{locale}] Added 1 translation"
+  url: "{change_url}"
+  timestamp: "{timestamp}"
+  color: 0x57F287
+  author:
+    name: "{actor}"
+    url: "{actor_url}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  fields:
+    - name: KEY
+      value: "`{key}`"
+      inline: false
+    - name: ENGLISH
+      value: "`{source}`"
+      inline: false
+    - name: NEW
+      value: "`{new_value}`"
+      inline: false
+modified:
+  title: "[{locale}] Modified 1 translation"
+  url: "{change_url}"
+  timestamp: "{timestamp}"
+  color: 0xFEE75C
+  author:
+    name: "{actor}"
+    url: "{actor_url}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  fields:
+    - name: KEY
+      value: "`{key}`"
+      inline: false
+    - name: ENGLISH
+      value: "`{source}`"
+      inline: false
+    - name: OLD
+      value: "`{old_value}`"
+      inline: false
+    - name: NEW
+      value: "`{new_value}`"
+      inline: false
+deleted:
+  title: "[{locale}] Deleted 1 translation"
+  url: "{change_url}"
+  timestamp: "{timestamp}"
+  color: 0xED4245
+  author:
+    name: "{actor}"
+    url: "{actor_url}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  fields:
+    - name: KEY
+      value: "`{key}`"
+      inline: false
+    - name: ENGLISH
+      value: "`{source}`"
+      inline: false
+    - name: OLD
+      value: "`{old_value}`"
+      inline: false

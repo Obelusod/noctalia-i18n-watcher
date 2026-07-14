@@ -1,0 +1,39 @@
+[Unit]
+Description=Noctalia i18n Watcher
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=noctalia-i18n-watcher
+Group=noctalia-i18n-watcher
+WorkingDirectory=/opt/noctalia-i18n-watcher
+LoadCredential=config.json:/etc/noctalia-i18n-watcher/config.json
+ExecStart=/opt/noctalia-i18n-watcher/.venv/bin/python -m noctalia_i18n_watcher run
+TimeoutStartSec=infinity
+
+StateDirectory=noctalia-i18n-watcher
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=true
+LockPersonality=true
+RestrictRealtime=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077

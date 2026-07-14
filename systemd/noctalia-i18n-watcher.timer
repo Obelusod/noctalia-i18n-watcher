@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule Noctalia i18n Watcher
+
+[Timer]
+OnActiveSec=2min
+OnUnitInactiveSec=2min
+AccuracySec=10s
+RandomizedDelaySec=10s
+[Install]
+WantedBy=timers.target

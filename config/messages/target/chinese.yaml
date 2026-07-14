@@ -1,0 +1,60 @@
+added:
+  title: "[{locale}] 新增了 1 条译文"
+  url: "{change_url}"
+  timestamp: "{timestamp}"
+  color: 0x57F287
+  author:
+    name: "{actor}"
+    url: "{actor_url}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  fields:
+    - name: 键名
+      value: "`{key}`"
+      inline: false
+    - name: 英文
+      value: "`{source}`"
+      inline: false
+    - name: 新值
+      value: "`{new_value}`"
+      inline: false
+modified:
+  title: "[{locale}] 修改了 1 条译文"
+  url: "{change_url}"
+  timestamp: "{timestamp}"
+  color: 0xFEE75C
+  author:
+    name: "{actor}"
+    url: "{actor_url}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  fields:
+    - name: 键名
+      value: "`{key}`"
+      inline: false
+    - name: 英文
+      value: "`{source}`"
+      inline: false
+    - name: 旧值
+      value: "`{old_value}`"
+      inline: false
+    - name: 新值
+      value: "`{new_value}`"
+      inline: false
+deleted:
+  title: "[{locale}] 删除了 1 条译文"
+  url: "{change_url}"
+  timestamp: "{timestamp}"
+  color: 0xED4245
+  author:
+    name: "{actor}"
+    url: "{actor_url}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  fields:
+    - name: 键名
+      value: "`{key}`"
+      inline: false
+    - name: 英文
+      value: "`{source}`"
+      inline: false
+    - name: 旧值
+      value: "`{old_value}`"
+      inline: false

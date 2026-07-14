@@ -1,0 +1,27 @@
+added:
+  title: "[{locale}] Added 1 translation"
+  url: "{change_url}"
+  description: |-
+    **KEY**
+    `{key}`
+    **CHANGE**
+    `∅` → `{new_value}`
+  color: 0x57F287
+modified:
+  title: "[{locale}] Modified 1 translation"
+  url: "{change_url}"
+  description: |-
+    **KEY**
+    `{key}`
+    **CHANGE**
+    `{old_value}` → `{new_value}`
+  color: 0xFEE75C
+deleted:
+  title: "[{locale}] Deleted 1 translation"
+  url: "{change_url}"
+  description: |-
+    **KEY**
+    `{key}`
+    **CHANGE**
+    `{old_value}` → `∅`
+  color: 0xED4245

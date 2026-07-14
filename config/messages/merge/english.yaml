@@ -1,0 +1,31 @@
+source:
+  title: "[English] Source Changes · {count}"
+  timestamp: "{last_timestamp}"
+  color: 0x5865F2
+  author:
+    name: "{actors}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  description: "{entries}"
+  footer:
+    text: "{added_count} added · {modified_count} modified · {deleted_count} deleted"
+target:
+  title: "[{locale}] Translation Changes · {count}"
+  timestamp: "{last_timestamp}"
+  color: 0x5865F2
+  author:
+    name: "{actors}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  description: "{entries}"
+  footer:
+    text: "{added_count} added · {modified_count} modified · {deleted_count} deleted"
+entries:
+  separator: "\n"
+  added: |-
+    **[`{key}`]({change_url})**
+    > `∅` → `{new_value}`
+  modified: |-
+    **[`{key}`]({change_url})**
+    > `{old_value}` → `{new_value}`
+  deleted: |-
+    **[`{key}`]({change_url})**
+    > `{old_value}` → `∅`

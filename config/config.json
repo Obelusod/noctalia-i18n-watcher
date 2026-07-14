@@ -1,0 +1,47 @@
+{
+  "settings": {
+    "http": {
+      "proxy_url": "",
+      "request_timeout": 30
+    },
+    "retention_days": 180,
+    "log_level": "INFO"
+  },
+  "monitors": [
+    {
+      "id": "noctalia",
+      "source": {
+        "project": "noctalia",
+        "adapter": "web",
+        "options": {
+          "max_pages": 20
+        }
+      },
+      "webhooks": [
+        {
+          "id": "default",
+          "url": "https://discord.com/api/webhooks/REPLACE_ID/REPLACE_TOKEN",
+          "username": "",
+          "avatar_url": "",
+          "locales": ["en", "zh-Hans"],
+          "actions": ["added", "modified", "deleted"],
+          "messages": {
+            "source": "english",
+            "target": "english",
+            "merge": "english"
+          },
+          "delivery": {
+            "quiet_seconds": 240,
+            "max_wait_seconds": 900,
+            "latest_only": true,
+            "merge": {
+              "enabled": true,
+              "threshold": 5
+            }
+          },
+          "notify_baseline": true
+        }
+      ]
+    }
+  ]
+}

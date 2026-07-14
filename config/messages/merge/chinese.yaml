@@ -1,0 +1,31 @@
+source:
+  title: "[English] 原文变更 · {count} 条"
+  timestamp: "{last_timestamp}"
+  color: 0x5865F2
+  author:
+    name: "{actors}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  description: "{entries}"
+  footer:
+    text: "新增 {added_count} · 修改 {modified_count} · 删除 {deleted_count}"
+target:
+  title: "[{locale}] 译文变更 · {count} 条"
+  timestamp: "{last_timestamp}"
+  color: 0x5865F2
+  author:
+    name: "{actors}"
+    icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
+  description: "{entries}"
+  footer:
+    text: "新增 {added_count} · 修改 {modified_count} · 删除 {deleted_count}"
+entries:
+  separator: "\n"
+  added: |-
+    **[`{key}`]({change_url})**
+    > `∅` → `{new_value}`
+  modified: |-
+    **[`{key}`]({change_url})**
+    > `{old_value}` → `{new_value}`
+  deleted: |-
+    **[`{key}`]({change_url})**
+    > `{old_value}` → `∅`
