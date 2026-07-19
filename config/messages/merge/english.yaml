@@ -18,6 +18,9 @@ target:
   description: "{entries}"
   footer:
     text: "{added_count} added · {modified_count} modified · {deleted_count} deleted"
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 entries:
   separator: "\n"
   added: |-

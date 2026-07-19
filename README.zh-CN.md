@@ -170,6 +170,9 @@ sudo systemctl restart noctalia-i18n-watcher.timer
 source 和 target 文件定义 `added`、`modified`、`deleted`，逐条文案可参考 [`target/chinese.yaml`](config/messages/target/chinese.yaml)。merge 文件定义 `source`、`target` Embed、`entries.separator` 和三种动作的条目排版。内置修改条目为：
 
 ````yaml
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 entries:
   modified: |-
     **[`{key}`]({change_url})**
@@ -178,6 +181,8 @@ entries:
     + {new_diff}
     ```
 ````
+
+文案使用 `{old_diff}` 或 `{new_diff}` 时必须定义 `diff`。`color` 可填写 `gray`、`red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white` 或 `null`；`bold` 和 `underline` 分别控制加粗和下划线。
 
 Embed 可使用 `title`、`description`、`fields`、`footer`、`author`、`image`、`thumbnail`、`url`、`timestamp` 和 `color`。组件和字段只在写出时显示，并保持配置顺序。Discord 按查看者设置渲染 `timestamp`，省略即可隐藏时间。
 
@@ -191,7 +196,7 @@ YAML 字符串支持以下占位符：
 | `{source}` | 英文原文 |
 | `{old_value}` | 修改前或删除前的值 |
 | `{new_value}` | 新增后或修改后的值 |
-| `{old_diff}` / `{new_diff}` | 带 ANSI 样式的旧值/新值；差异部分使用红色/绿色粗体 |
+| `{old_diff}` / `{new_diff}` | 使用所配置 ANSI 样式标记差异的旧值/新值 |
 | `{locale}` | 变更的 locale，例如 `zh-Hans` |
 | `{actor}` | 编辑者 |
 | `{actor_url}` | 编辑者主页 URL（如有） |

@@ -15,7 +15,7 @@ from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode
 from yaml.resolver import BaseResolver
 
-from .diff import format_ansi_diff
+from .diff import AnsiStyle, format_ansi_diff
 from .models import (
     ACTIONS,
     SOURCE_LOCALE,
@@ -97,6 +97,9 @@ class MergeValues(TypedDict):
     first_unix_time: int
     last_unix_time: int
     entries: str
+
+
+type _DiffStyles = tuple[AnsiStyle, AnsiStyle]
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,7 +236,7 @@ class MessageTemplate:
 
     name: str
     templates: Mapping[Action, Embed]
-    uses_diff: bool
+    diff_styles: _DiffStyles | None
 
     def render(self, action: Action, values: Mapping[str, object]) -> Embed:
         """Render and validate one detailed embed from external template values."""
@@ -241,7 +244,7 @@ class MessageTemplate:
         try:
             label = f"message {self.name!r} action {action!r}"
             template = validate_json(self.templates[action], label)
-            scope = _render_values(values, f"{label} values", self.uses_diff)
+            scope = _render_values(values, f"{label} values", self.diff_styles)
             rendered = _render_value(template, scope)
             _omit_empty_urls(rendered)
             return _validate_embed(rendered, label, rendered=True)
@@ -266,7 +269,7 @@ class MergeTemplate:
     target: Embed
     entries: Mapping[Action, str]
     separator: str
-    uses_diff: bool
+    diff_styles: _DiffStyles | None
 
     def render(self, values: Sequence[MessageValues]) -> tuple[MergePage, ...]:
         """Render every entry, splitting the locale batch at Discord limits."""
@@ -314,7 +317,7 @@ class MergeTemplate:
             entry_scope = _render_values(
                 item,
                 f"{label} entry {index} values",
-                self.uses_diff,
+                self.diff_styles,
             )
             rendered = _render_string(self.entries[item["action"]], entry_scope)
             if not isinstance(rendered, str) or not rendered:
@@ -573,7 +576,7 @@ def _render_string(template: str, values: Mapping[str, JsonValue]) -> str:
 def _render_values(
     values: Mapping[str, object],
     label: str,
-    uses_diff: bool,
+    diff_styles: _DiffStyles | None,
 ) -> dict[str, JsonValue]:
     scope = validate_json(dict(values), label)
     if not isinstance(scope, dict):
@@ -584,8 +587,14 @@ def _render_values(
         raise ValueError(f"{label}.old_value must be a string or null")
     if new is not None and not isinstance(new, str):
         raise ValueError(f"{label}.new_value must be a string or null")
-    if uses_diff:
-        old_diff, new_diff = format_ansi_diff(old, new)
+    if diff_styles is not None:
+        old_style, new_style = diff_styles
+        old_diff, new_diff = format_ansi_diff(
+            old,
+            new,
+            old_style=old_style,
+            new_style=new_style,
+        )
         scope["old_diff"] = old_diff
         scope["new_diff"] = new_diff
     return scope
@@ -627,12 +636,48 @@ def _uses_diff(value: object) -> bool:
     return False
 
 
+def _load_diff_styles(
+    value: JsonValue | None,
+    label: str,
+    *,
+    required: bool,
+) -> _DiffStyles | None:
+    if value is None:
+        if required:
+            raise ValueError(
+                f"{label}.diff is required when diff placeholders are used"
+            )
+        return None
+
+    raw = _object(value, f"{label}.diff")
+    sides = frozenset({"old", "new"})
+    _exact_keys(raw, sides, sides, f"{label}.diff")
+    styles: list[AnsiStyle] = []
+    for side in ("old", "new"):
+        style_label = f"{label}.diff.{side}"
+        style = _object(raw[side], style_label)
+        fields = frozenset({"color", "bold", "underline"})
+        _exact_keys(style, fields, fields, style_label)
+        color = style["color"]
+        bold = style["bold"]
+        underline = style["underline"]
+        if color is not None and not isinstance(color, str):
+            raise ValueError(f"{style_label}.color must be a string or null")
+        if not isinstance(bold, bool) or not isinstance(underline, bool):
+            raise ValueError(f"{style_label} emphasis settings must be booleans")
+        try:
+            styles.append(AnsiStyle(color, bold, underline))
+        except ValueError as exc:
+            raise ValueError(f"{style_label}: {exc}") from exc
+    return styles[0], styles[1]
+
+
 def _load_merge(path: Path, name: str) -> MergeTemplate:
     label = f"message {name!r} merge"
     raw = _read_yaml(path, label)
     _exact_keys(
         raw,
-        frozenset({"source", "target", "entries"}),
+        frozenset({"source", "target", "diff", "entries"}),
         frozenset({"source", "target", "entries"}),
         label,
     )
@@ -662,29 +707,39 @@ def _load_merge(path: Path, name: str) -> MergeTemplate:
             rendered=False,
             scope=_MESSAGE_SCOPE,
         )
+    diff_styles = _load_diff_styles(
+        raw.get("diff"),
+        label,
+        required=any(_uses_diff(template) for template in templates.values()),
+    )
     return MergeTemplate(
         name=name,
         source=source,
         target=target,
         entries=templates,
         separator=separator,
-        uses_diff=any(_uses_diff(template) for template in templates.values()),
+        diff_styles=diff_styles,
     )
 
 
 def _load_message(path: Path, name: str) -> MessageTemplate:
     label = f"message {name!r}"
     raw = _read_yaml(path, label)
-    required = frozenset(ACTIONS)
-    _exact_keys(raw, required, required, label)
+    actions = frozenset(ACTIONS)
+    _exact_keys(raw, actions | {"diff"}, actions, label)
     templates: dict[Action, Embed] = {}
     for action in ACTIONS:
         action_label = f"{label} action {action!r}"
         templates[action] = _validate_embed(raw[action], action_label, rendered=False)
+    diff_styles = _load_diff_styles(
+        raw.get("diff"),
+        label,
+        required=any(_uses_diff(template) for template in templates.values()),
+    )
     return MessageTemplate(
         name=name,
         templates=templates,
-        uses_diff=any(_uses_diff(template) for template in templates.values()),
+        diff_styles=diff_styles,
     )
 
 

@@ -4,12 +4,46 @@ from __future__ import annotations
 
 import difflib
 import unicodedata
+from dataclasses import dataclass
 
 _ESCAPE = "\x1b["
 _RESET = f"{_ESCAPE}0m"
-_REMOVED = f"{_ESCAPE}1;31m"
-_ADDED = f"{_ESCAPE}1;32m"
 _ZERO_WIDTH_SPACE = "\u200b"
+_ANSI_COLORS = {
+    "gray": "30",
+    "red": "31",
+    "green": "32",
+    "yellow": "33",
+    "blue": "34",
+    "magenta": "35",
+    "cyan": "36",
+    "white": "37",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class AnsiStyle:
+    """Validated emphasis and foreground color for changed text."""
+
+    color: str | None
+    bold: bool
+    underline: bool
+
+    def __post_init__(self) -> None:
+        if self.color is not None and self.color not in _ANSI_COLORS:
+            raise ValueError(f"Unsupported ANSI foreground color: {self.color!r}")
+        if type(self.bold) is not bool or type(self.underline) is not bool:
+            raise ValueError("ANSI bold and underline settings must be booleans")
+
+    def _sequence(self) -> str:
+        codes: list[str] = []
+        if self.bold:
+            codes.append("1")
+        if self.underline:
+            codes.append("4")
+        if self.color is not None:
+            codes.append(_ANSI_COLORS[self.color])
+        return f"{_ESCAPE}{';'.join(codes)}m" if codes else ""
 
 
 def _is_dense_script(character: str) -> bool:
@@ -106,12 +140,15 @@ def _change_masks(old: list[str], new: list[str]) -> tuple[list[bool], list[bool
     return old_changed, new_changed
 
 
-def _style(tokens: list[str], changed: list[bool], color: str) -> str:
+def _style(tokens: list[str], changed: list[bool], style: AnsiStyle) -> str:
+    sequence = style._sequence()
+    if not sequence:
+        return "".join(tokens)
     output: list[str] = []
     active = False
     for token, different in zip(tokens, changed, strict=True):
         if different != active:
-            output.append(color if different else _RESET)
+            output.append(sequence if different else _RESET)
             active = different
         output.append(token)
     if active:
@@ -119,13 +156,20 @@ def _style(tokens: list[str], changed: list[bool], color: str) -> str:
     return "".join(output)
 
 
-def format_ansi_diff(old: str | None, new: str | None, /) -> tuple[str, str]:
+def format_ansi_diff(
+    old: str | None,
+    new: str | None,
+    /,
+    *,
+    old_style: AnsiStyle,
+    new_style: AnsiStyle,
+) -> tuple[str, str]:
     """Return old and new values with changed tokens styled for Discord ANSI."""
 
     old_tokens = _tokens(_safe_value(old)) if old is not None else []
     new_tokens = _tokens(_safe_value(new)) if new is not None else []
     old_changed, new_changed = _change_masks(old_tokens, new_tokens)
     return (
-        _style(old_tokens, old_changed, _REMOVED),
-        _style(new_tokens, new_changed, _ADDED),
+        _style(old_tokens, old_changed, old_style),
+        _style(new_tokens, new_changed, new_style),
     )

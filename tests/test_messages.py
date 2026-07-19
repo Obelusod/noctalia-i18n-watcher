@@ -88,6 +88,20 @@ class MessageTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    @staticmethod
+    def _set_diff_styles(
+        path: Path,
+        *,
+        old: dict[str, object],
+        new: dict[str, object],
+    ) -> None:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+        payload["diff"] = {"old": old, "new": new}
+        path.write_text(
+            yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+
     def test_repository_message_defines_the_discord_embed(self) -> None:
         english = load_message("english", TARGET_MESSAGE_DIR)
         embed = english.render("modified", _recorded_values())
@@ -114,6 +128,11 @@ class MessageTests(unittest.TestCase):
                 path,
                 "modified",
                 {"description": "{old_diff}\n{new_diff}"},
+            )
+            self._set_diff_styles(
+                path,
+                old={"color": "red", "bold": True, "underline": False},
+                new={"color": "green", "bold": True, "underline": False},
             )
             message = load_message("ansi", Path(directory))
 
@@ -282,6 +301,23 @@ class MessageTests(unittest.TestCase):
                         "english": "[English] Source Changes · 1",
                     }[name],
                 )
+
+    def test_message_diff_styles_control_color_and_emphasis(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._copy_merge(Path(directory), "custom")
+            self._set_diff_styles(
+                path,
+                old={"color": "yellow", "bold": False, "underline": True},
+                new={"color": "blue", "bold": False, "underline": False},
+            )
+            message = load_merge("custom", Path(directory))
+
+        description = message.render((_recorded_values(),))[0].embed.get(
+            "description", ""
+        )
+
+        self.assertIn("\x1b[4;33m边框\x1b[0m", description)
+        self.assertIn("\x1b[34m轮廓\x1b[0m", description)
 
     def test_merge_preserves_the_recorded_change_values(self) -> None:
         change = recorded_change()
@@ -517,6 +553,35 @@ entries:
   separator: ""
   added: "{key}"
   modified: "{key}"
+""",
+            ),
+            (
+                "missing diff styles",
+                """source:
+  title: "{count}"
+target:
+  title: "{count}"
+entries:
+  separator: ""
+  added: "{key}"
+  modified: "{old_diff}"
+  deleted: "{key}"
+""",
+            ),
+            (
+                "invalid diff color",
+                """source:
+  title: "{count}"
+target:
+  title: "{count}"
+diff:
+  old: {color: orange, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
+entries:
+  separator: ""
+  added: "{key}"
+  modified: "{old_diff}"
+  deleted: "{key}"
 """,
             ),
         )

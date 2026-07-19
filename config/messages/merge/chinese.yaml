@@ -18,6 +18,9 @@ target:
   description: "{entries}"
   footer:
     text: "新增 {added_count} · 修改 {modified_count} · 删除 {deleted_count}"
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 entries:
   separator: "\n"
   added: |-

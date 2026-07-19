@@ -170,6 +170,9 @@ Messages live under `/etc/noctalia-i18n-watcher/messages/<scope>/<name>.yaml`. N
 Source and target files define `added`, `modified`, and `deleted`; see [`target/english.yaml`](config/messages/target/english.yaml) for a detailed message. Merge files define `source` and `target` embeds, `entries.separator`, and one entry for each action. The built-in modified entry is:
 
 ````yaml
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 entries:
   modified: |-
     **[`{key}`]({change_url})**
@@ -178,6 +181,8 @@ entries:
     + {new_diff}
     ```
 ````
+
+`diff` is required when a file uses `{old_diff}` or `{new_diff}`. `color` accepts `gray`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, or `null`; `bold` and `underline` independently control emphasis.
 
 Embed definitions may use `title`, `description`, `fields`, `footer`, `author`, `image`, `thumbnail`, `url`, `timestamp`, and `color`. Components and fields appear only when written and in the listed order. Discord renders `timestamp` for each viewer; omit it to hide time.
 
@@ -191,7 +196,7 @@ YAML strings support these placeholders:
 | `{source}` | English source text |
 | `{old_value}` | Value before modification or deletion |
 | `{new_value}` | Value after addition or modification |
-| `{old_diff}` / `{new_diff}` | Old/new value with changed tokens styled as bold red/green ANSI text |
+| `{old_diff}` / `{new_diff}` | Old/new value with changed tokens using the configured ANSI style |
 | `{locale}` | Change locale, such as `zh-Hans` |
 | `{actor}` | Editor |
 | `{actor_url}` | Editor profile URL, when available |
