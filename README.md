@@ -21,7 +21,7 @@ By default, the built-in web adapter monitors `noctalia`. Other projects such as
 
 ## Message format
 
-The default detailed messages use green, yellow, and red for additions, modifications, and deletions. Detailed source and target messages link editor profiles when available; Discord localizes timestamps.
+The default detailed messages use green, yellow, and red for additions, modifications, and deletions. Merged messages highlight changed tokens with bold red and green ANSI text. Detailed source and target messages link editor profiles when available; Discord localizes timestamps.
 
 | Scope | Messages | Layout |
 | --- | --- | --- |
@@ -64,6 +64,7 @@ Today at 5:51 PM
 │   ├── app.py                # Application operations and composition
 │   ├── cli.py                # Program entry and command-line handling
 │   ├── config.py             # Configuration loading/validation
+│   ├── diff.py               # Multilingual value differences
 │   ├── discord.py            # Discord message rendering and delivery
 │   ├── messages.py           # YAML message loading and rendering
 │   ├── models.py             # Shared data models
@@ -166,27 +167,17 @@ Messages live under `/etc/noctalia-i18n-watcher/messages/<scope>/<name>.yaml`. N
 
 `messages` must explicitly provide `source`, `target`, and `merge`. `locales` determines whether the source and target messages are loaded, while `delivery.merge.enabled` determines whether the merge message is loaded. Selections in an inactive scope are not validated against message files until that scope is enabled.
 
-Source and target files define `added`, `modified`, and `deleted`; see [`target/english.yaml`](config/messages/target/english.yaml) for a detailed message. Merge files use `source` and `target` embeds plus three layouts under `entries`, as shown in [`merge/english.yaml`](config/messages/merge/english.yaml):
+Source and target files define `added`, `modified`, and `deleted`; see [`target/english.yaml`](config/messages/target/english.yaml) for a detailed message. Merge files define `source` and `target` embeds, `entries.separator`, and one entry for each action. The built-in modified entry is:
 
-```yaml
-source:
-  title: "[English] Source Changes · {count}"
-  description: "{entries}"
-target:
-  title: "[{locale}] Translation Changes · {count}"
-  description: "{entries}"
+````yaml
 entries:
-  separator: "\n"
-  added: |-
-    **[`{key}`]({change_url})**
-    > `∅` → `{new_value}`
   modified: |-
     **[`{key}`]({change_url})**
-    > `{old_value}` → `{new_value}`
-  deleted: |-
-    **[`{key}`]({change_url})**
-    > `{old_value}` → `∅`
-```
+    ```ansi
+    − {old_diff}
+    + {new_diff}
+    ```
+````
 
 Embed definitions may use `title`, `description`, `fields`, `footer`, `author`, `image`, `thumbnail`, `url`, `timestamp`, and `color`. Components and fields appear only when written and in the listed order. Discord renders `timestamp` for each viewer; omit it to hide time.
 
@@ -200,6 +191,7 @@ YAML strings support these placeholders:
 | `{source}` | English source text |
 | `{old_value}` | Value before modification or deletion |
 | `{new_value}` | Value after addition or modification |
+| `{old_diff}` / `{new_diff}` | Old/new value with changed tokens styled as bold red/green ANSI text |
 | `{locale}` | Change locale, such as `zh-Hans` |
 | `{actor}` | Editor |
 | `{actor_url}` | Editor profile URL, when available |

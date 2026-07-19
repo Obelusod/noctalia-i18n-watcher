@@ -22,10 +22,19 @@ entries:
   separator: "\n"
   added: |-
     **[`{key}`]({change_url})**
-    > `∅` → `{new_value}`
+    ```ansi
+    − ∅
+    + {new_diff}
+    ```
   modified: |-
     **[`{key}`]({change_url})**
-    > `{old_value}` → `{new_value}`
+    ```ansi
+    − {old_diff}
+    + {new_diff}
+    ```
   deleted: |-
     **[`{key}`]({change_url})**
-    > `{old_value}` → `∅`
+    ```ansi
+    − {old_diff}
+    + ∅
+    ```

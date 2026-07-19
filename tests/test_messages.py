@@ -19,8 +19,6 @@ from .fixtures import (
     MERGE_MESSAGE_DIR,
     RECORDED_ACTOR,
     RECORDED_KEY,
-    RECORDED_NEW_VALUE,
-    RECORDED_OLD_VALUE,
     RECORDED_SOURCE,
     SOURCE_MESSAGE_DIR,
     TARGET_MESSAGE_DIR,
@@ -236,10 +234,14 @@ class MessageTests(unittest.TestCase):
                     "[`fixture.entry.0`](https://fixtures.invalid/changes/0)",
                     description,
                 )
-                self.assertTrue(
-                    all(
-                        line.startswith("> ") for line in description.splitlines()[1::2]
-                    )
+                self.assertEqual(description.count("```ansi"), len(values))
+                self.assertIn(
+                    "− ∅\n+ \x1b[1;32mFixture new value 0\x1b[0m",
+                    description,
+                )
+                self.assertIn(
+                    "− \x1b[1;31mFixture old value 2\x1b[0m\n+ ∅",
+                    description,
                 )
                 self.assertEqual(
                     pages[0].embed.get("author"),
@@ -287,8 +289,8 @@ class MessageTests(unittest.TestCase):
         description = page.embed.get("description", "")
 
         self.assertIn(f"[`{RECORDED_KEY}`]({change.url})", description)
-        self.assertIn(RECORDED_OLD_VALUE, description)
-        self.assertIn(RECORDED_NEW_VALUE, description)
+        self.assertIn("\x1b[1;31m边框\x1b[0m", description)
+        self.assertIn("\x1b[1;32m轮廓\x1b[0m", description)
         self.assertNotIn("…", description)
 
     def test_merge_splits_at_embed_limits_without_omitting_entries(self) -> None:

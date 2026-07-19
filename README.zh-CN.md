@@ -21,7 +21,7 @@ Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/p
 
 ## 消息格式
 
-默认详细文案使用绿色、黄色和红色区分新增、修改和删除。详细原文语言和目标语言文案会在有编辑者主页时显示链接；时间由 Discord 本地化显示。
+默认详细文案使用绿色、黄色和红色区分新增、修改和删除。合并文案使用红色和绿色 ANSI 粗体标记实际差异。详细原文语言和目标语言文案会在有编辑者主页时显示链接；时间由 Discord 本地化显示。
 
 | 范围 | 文案 | 布局 |
 | --- | --- | --- |
@@ -64,6 +64,7 @@ Obelusod
 │   ├── app.py                # 应用操作与组件装配
 │   ├── cli.py                # 程序入口与命令行处理
 │   ├── config.py             # 配置加载/校验
+│   ├── diff.py               # 多语言值差异处理
 │   ├── discord.py            # Discord 消息渲染、投递
 │   ├── messages.py           # YAML 文案加载、渲染
 │   ├── models.py             # 共享数据模型
@@ -166,27 +167,17 @@ sudo systemctl restart noctalia-i18n-watcher.timer
 
 `messages` 必须显式填写 `source`、`target` 和 `merge`。`locales` 决定是否加载 source 和 target 文案，`delivery.merge.enabled` 决定是否加载 merge 文案；未启用范围的选择在启用前不会根据文案文件进行校验。
 
-source 和 target 文件定义 `added`、`modified`、`deleted`，逐条文案可参考 [`target/chinese.yaml`](config/messages/target/chinese.yaml)。merge 文件使用 `source`、`target` Embed 和 `entries` 下的三种动作排版，例如 [`merge/chinese.yaml`](config/messages/merge/chinese.yaml)：
+source 和 target 文件定义 `added`、`modified`、`deleted`，逐条文案可参考 [`target/chinese.yaml`](config/messages/target/chinese.yaml)。merge 文件定义 `source`、`target` Embed、`entries.separator` 和三种动作的条目排版。内置修改条目为：
 
-```yaml
-source:
-  title: "[English] 原文变更 · {count} 条"
-  description: "{entries}"
-target:
-  title: "[{locale}] 译文变更 · {count} 条"
-  description: "{entries}"
+````yaml
 entries:
-  separator: "\n"
-  added: |-
-    **[`{key}`]({change_url})**
-    > `∅` → `{new_value}`
   modified: |-
     **[`{key}`]({change_url})**
-    > `{old_value}` → `{new_value}`
-  deleted: |-
-    **[`{key}`]({change_url})**
-    > `{old_value}` → `∅`
-```
+    ```ansi
+    − {old_diff}
+    + {new_diff}
+    ```
+````
 
 Embed 可使用 `title`、`description`、`fields`、`footer`、`author`、`image`、`thumbnail`、`url`、`timestamp` 和 `color`。组件和字段只在写出时显示，并保持配置顺序。Discord 按查看者设置渲染 `timestamp`，省略即可隐藏时间。
 
@@ -200,6 +191,7 @@ YAML 字符串支持以下占位符：
 | `{source}` | 英文原文 |
 | `{old_value}` | 修改前或删除前的值 |
 | `{new_value}` | 新增后或修改后的值 |
+| `{old_diff}` / `{new_diff}` | 带 ANSI 样式的旧值/新值；差异部分使用红色/绿色粗体 |
 | `{locale}` | 变更的 locale，例如 `zh-Hans` |
 | `{actor}` | 编辑者 |
 | `{actor_url}` | 编辑者主页 URL（如有） |
