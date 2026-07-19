@@ -109,6 +109,26 @@ class MessageTests(unittest.TestCase):
         )
         self.assertEqual(embed.get("timestamp"), "2026-07-17T09:51:04.838Z")
 
+    def test_messages_can_place_derived_ansi_differences(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._copy_message(Path(directory), "ansi")
+            self._replace_action(
+                path,
+                "modified",
+                {"description": "{old_diff}\n{new_diff}"},
+            )
+            message = load_message("ansi", Path(directory))
+
+        embed = message.render("modified", _recorded_values())
+
+        self.assertEqual(
+            embed.get("description"),
+            (
+                "在 Toast 通知周围绘制\x1b[1;31m边框\x1b[0m\n"
+                "在 Toast 通知周围绘制\x1b[1;32m轮廓\x1b[0m"
+            ),
+        )
+
     def test_detailed_messages_use_the_configured_avatar_fallback(self) -> None:
         for directory in (SOURCE_MESSAGE_DIR, TARGET_MESSAGE_DIR):
             with self.subTest(scope=directory.name):

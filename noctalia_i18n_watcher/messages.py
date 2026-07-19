@@ -15,6 +15,7 @@ from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode
 from yaml.resolver import BaseResolver
 
+from .diff import format_ansi_diff
 from .models import (
     ACTIONS,
     SOURCE_LOCALE,
@@ -108,7 +109,8 @@ class _TemplateScope:
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _TRUNCATE_SPEC = re.compile(r"^truncate=([1-9]\d*)$")
 _FALLBACK_SPEC = re.compile(r"^fallback=([^{}]+)$")
-_MESSAGE_PLACEHOLDERS = frozenset(MessageValues.__required_keys__)
+_DIFF_PLACEHOLDERS = frozenset({"old_diff", "new_diff"})
+_MESSAGE_PLACEHOLDERS = frozenset(MessageValues.__required_keys__) | _DIFF_PLACEHOLDERS
 _MERGE_PLACEHOLDERS = frozenset(MergeValues.__required_keys__)
 _MESSAGE_SCOPE = _TemplateScope(
     _MESSAGE_PLACEHOLDERS,
@@ -231,6 +233,7 @@ class MessageTemplate:
 
     name: str
     templates: Mapping[Action, Embed]
+    uses_diff: bool
 
     def render(self, action: Action, values: Mapping[str, object]) -> Embed:
         """Render and validate one detailed embed from external template values."""
@@ -238,9 +241,7 @@ class MessageTemplate:
         try:
             label = f"message {self.name!r} action {action!r}"
             template = validate_json(self.templates[action], label)
-            scope = validate_json(dict(values), f"{label} values")
-            if not isinstance(scope, dict):
-                raise TypeError("Message values must be a JSON object")
+            scope = _render_values(values, f"{label} values", self.uses_diff)
             rendered = _render_value(template, scope)
             _omit_empty_urls(rendered)
             return _validate_embed(rendered, label, rendered=True)
@@ -265,6 +266,7 @@ class MergeTemplate:
     target: Embed
     entries: Mapping[Action, str]
     separator: str
+    uses_diff: bool
 
     def render(self, values: Sequence[MessageValues]) -> tuple[MergePage, ...]:
         """Render every entry, splitting the locale batch at Discord limits."""
@@ -309,9 +311,11 @@ class MergeTemplate:
         label = f"message {self.name!r} merge"
         entries: list[str] = []
         for index, item in enumerate(values):
-            entry_scope = validate_json(dict(item), f"{label} entry {index} values")
-            if not isinstance(entry_scope, dict):
-                raise TypeError("Merge entry values must be a JSON object")
+            entry_scope = _render_values(
+                item,
+                f"{label} entry {index} values",
+                self.uses_diff,
+            )
             rendered = _render_string(self.entries[item["action"]], entry_scope)
             if not isinstance(rendered, str) or not rendered:
                 raise ValueError(f"{label} entry {index} must render as non-empty text")
@@ -566,6 +570,27 @@ def _render_string(template: str, values: Mapping[str, JsonValue]) -> str:
     return _FORMATTER.vformat(template, (), scope)
 
 
+def _render_values(
+    values: Mapping[str, object],
+    label: str,
+    uses_diff: bool,
+) -> dict[str, JsonValue]:
+    scope = validate_json(dict(values), label)
+    if not isinstance(scope, dict):
+        raise TypeError("Message values must be a JSON object")
+    old = scope.get("old_value")
+    new = scope.get("new_value")
+    if old is not None and not isinstance(old, str):
+        raise ValueError(f"{label}.old_value must be a string or null")
+    if new is not None and not isinstance(new, str):
+        raise ValueError(f"{label}.new_value must be a string or null")
+    if uses_diff:
+        old_diff, new_diff = format_ansi_diff(old, new)
+        scope["old_diff"] = old_diff
+        scope["new_diff"] = new_diff
+    return scope
+
+
 def _render_value(value: JsonValue, values: Mapping[str, JsonValue]) -> JsonValue:
     if isinstance(value, str):
         return _render_string(value, values)
@@ -587,6 +612,19 @@ def _omit_empty_urls(value: JsonValue) -> None:
     for key in ("url", "icon_url"):
         if author.get(key) == "":
             del author[key]
+
+
+def _uses_diff(value: object) -> bool:
+    if isinstance(value, str):
+        return any(
+            field_name in _DIFF_PLACEHOLDERS
+            for _, field_name, _, _ in _FORMATTER.parse(value)
+        )
+    if isinstance(value, list):
+        return any(_uses_diff(item) for item in value)
+    if isinstance(value, dict):
+        return any(_uses_diff(item) for item in value.values())
+    return False
 
 
 def _load_merge(path: Path, name: str) -> MergeTemplate:
@@ -630,6 +668,7 @@ def _load_merge(path: Path, name: str) -> MergeTemplate:
         target=target,
         entries=templates,
         separator=separator,
+        uses_diff=any(_uses_diff(template) for template in templates.values()),
     )
 
 
@@ -642,7 +681,11 @@ def _load_message(path: Path, name: str) -> MessageTemplate:
     for action in ACTIONS:
         action_label = f"{label} action {action!r}"
         templates[action] = _validate_embed(raw[action], action_label, rendered=False)
-    return MessageTemplate(name=name, templates=templates)
+    return MessageTemplate(
+        name=name,
+        templates=templates,
+        uses_diff=any(_uses_diff(template) for template in templates.values()),
+    )
 
 
 def load_message(name: str, directory: Path) -> MessageTemplate:
