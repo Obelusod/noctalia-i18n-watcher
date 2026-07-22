@@ -41,7 +41,8 @@ def _page(
         rows.append(
             '<div class="change-row">'
             '<a class="change-key" '
-            f'href="/projects/{project}/translate?search={escape(key)}">'
+            f'href="/projects/{project}/translate?search={escape(key)}'
+            f'&amp;locale={escape(locale)}">'
             f"{escape(key)}</a>"
             f'<span class="change-locale">{escape(locale)}</span>'
             f'<span class="change-user">{escape(actor or "API")}</span>'
@@ -160,7 +161,10 @@ def _expected_change(record: _Record) -> Change:
         new_value=None if action == "deleted" else new_value,
         action=action,
         occurred_at=datetime.fromtimestamp(created_at / 1000, UTC),
-        url=f"https://i18n.noctalia.dev/projects/noctalia/translate?search={key}",
+        url=(
+            f"https://i18n.noctalia.dev/projects/noctalia/translate?search={key}"
+            f"&locale={locale}"
+        ),
         actor_url=(f"https://github.com/{actor}" if actor is not None else None),
         actor_avatar_url=(
             f"https://github.com/{actor}.png" if actor is not None else None
@@ -295,6 +299,14 @@ class WebSourceTests(unittest.TestCase):
                 RECENT_CHANGES_HTML.replace(
                     'href="/projects/noctalia/translate?',
                     'href="https://example.invalid/projects/noctalia/translate?',
+                    1,
+                ),
+            ),
+            (
+                "mismatched link locale",
+                RECENT_CHANGES_HTML.replace(
+                    "&amp;locale=zh-Hans",
+                    "&amp;locale=fr",
                     1,
                 ),
             ),

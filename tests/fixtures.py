@@ -56,14 +56,14 @@ def hydration_html(
     )
 
 
-# Exact rows captured from Recent Changes page 3 on 2026-07-18.
+# Real records captured from Recent Changes page 3 on 2026-07-18.
 RECENT_CHANGES_HTML = """
 <section class="recent-changes">
   <h2>Recent Changes</h2>
   <div class="change-row">
     <span class="change-time" title="7/17/2026, 5:51:04 AM">6h ago</span>
     <a class="change-key"
-       href="/projects/noctalia/translate?search=settings.schema.notifications.border.description">
+       href="/projects/noctalia/translate?search=settings.schema.notifications.border.description&amp;locale=zh-Hans">
       settings.schema.notifications.border.description
     </a>
     <span class="change-locale">zh-Hans</span><span class="change-user">Obelusod</span>
@@ -75,7 +75,7 @@ RECENT_CHANGES_HTML = """
   <div class="change-row">
     <span class="change-time" title="7/17/2026, 1:40:07 AM">10h ago</span>
     <a class="change-key"
-       href="/projects/noctalia/translate?search=settings.schema.notifications.border.description">
+       href="/projects/noctalia/translate?search=settings.schema.notifications.border.description&amp;locale=de">
       settings.schema.notifications.border.description
     </a>
     <span class="change-locale">de</span><span class="change-user">notiant</span>
@@ -119,7 +119,7 @@ def recorded_change(**overrides: Any) -> Change:
         occurred_at=RUN_AT,
         url=(
             "https://i18n.noctalia.dev/projects/noctalia/translate?search="
-            "settings.schema.notifications.border.description"
+            "settings.schema.notifications.border.description&locale=zh-Hans"
         ),
         actor_url="https://github.com/Obelusod",
         actor_avatar_url="https://github.com/Obelusod.png",

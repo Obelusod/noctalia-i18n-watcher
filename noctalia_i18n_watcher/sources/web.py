@@ -238,13 +238,16 @@ def _parse_page(html: str, project: str) -> _Page:
     for row, link, data in zip(rows, links, page_changes, strict=True):
         url = urljoin(_BASE_URL + "/", str(link.get("href")))
         parsed = urlparse(url)
-        keys = parse_qs(parsed.query).get("search", [])
+        query = parse_qs(parsed.query)
+        keys = query.get("search", [])
+        locales = query.get("locale", [])
         locale = _select_one(row, ".change-locale").get_text(" ", strip=True)
         actor = _select_one(row, ".change-user").get_text(" ", strip=True).lstrip("@")
         if (
             (parsed.scheme, parsed.netloc) != (_BASE_ORIGIN.scheme, _BASE_ORIGIN.netloc)
             or parsed.path != change_path
             or keys != [data.key]
+            or locales != [data.locale]
             or locale != data.locale
             or not actor
         ):

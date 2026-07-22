@@ -36,6 +36,7 @@ class LiveSourceTests(unittest.TestCase):
             ):
                 changes = source.page(1) if isinstance(source, PagedSource) else None
                 baseline = source.poll(None)
+                followup = source.poll(baseline.cursor)
 
                 if changes is not None:
                     self.assertEqual(
@@ -44,6 +45,8 @@ class LiveSourceTests(unittest.TestCase):
                     )
                 self.assertEqual(baseline.changes, ())
                 self.assertIsNotNone(baseline.source_texts)
+                if followup.changes:
+                    self.assertIsNotNone(followup.source_texts)
 
 
 @unittest.skipUnless(
