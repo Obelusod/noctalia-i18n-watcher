@@ -113,7 +113,10 @@ _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _TRUNCATE_SPEC = re.compile(r"^truncate=([1-9]\d*)$")
 _FALLBACK_SPEC = re.compile(r"^fallback=([^{}]+)$")
 _DIFF_PLACEHOLDERS = frozenset({"old_diff", "new_diff"})
-_MESSAGE_PLACEHOLDERS = frozenset(MessageValues.__required_keys__) | _DIFF_PLACEHOLDERS
+_DERIVED_PLACEHOLDERS = _DIFF_PLACEHOLDERS | {"key_link"}
+_MESSAGE_PLACEHOLDERS = (
+    frozenset(MessageValues.__required_keys__) | _DERIVED_PLACEHOLDERS
+)
 _MERGE_PLACEHOLDERS = frozenset(MergeValues.__required_keys__)
 _MESSAGE_SCOPE = _TemplateScope(
     _MESSAGE_PLACEHOLDERS,
@@ -587,6 +590,14 @@ def _render_values(
         raise ValueError(f"{label}.old_value must be a string or null")
     if new is not None and not isinstance(new, str):
         raise ValueError(f"{label}.new_value must be a string or null")
+    key = scope.get("key")
+    change_url = scope.get("change_url")
+    if key is not None:
+        if not isinstance(key, str) or not key:
+            raise ValueError(f"{label}.key must be a non-empty string")
+        if change_url is not None and not isinstance(change_url, str):
+            raise ValueError(f"{label}.change_url must be a string or null")
+        scope["key_link"] = f"[`{key}`]({change_url})" if change_url else f"`{key}`"
     if diff_styles is not None:
         old_style, new_style = diff_styles
         old_diff, new_diff = format_ansi_diff(

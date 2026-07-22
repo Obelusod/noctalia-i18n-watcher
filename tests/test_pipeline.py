@@ -91,10 +91,18 @@ class MonitoringPipelineTests(unittest.TestCase):
         self.assertEqual(
             [field["value"] for field in payload["embeds"][0]["fields"]],
             [
-                f"`{changed.key}`",
+                (
+                    f"[`{changed.key}`]"
+                    "(https://i18n.noctalia.dev/projects/noctalia/translate?search="
+                    f"{changed.key}&locale=zh-Hans)"
+                ),
                 f"`{RECORDED_SOURCE}`",
-                f"`{changed.old_value}`",
-                f"`{changed.new_value}`",
+                (
+                    "```ansi\n"
+                    "− 在 Toast 通知周围绘制\x1b[1;31m边框\x1b[0m\n"
+                    "+ 在 Toast 通知周围绘制\x1b[1;32m轮廓\x1b[0m\n"
+                    "```"
+                ),
             ],
         )
 

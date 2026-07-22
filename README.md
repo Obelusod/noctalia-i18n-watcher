@@ -167,22 +167,23 @@ Messages live under `/etc/noctalia-i18n-watcher/messages/<scope>/<name>.yaml`. N
 
 `messages` must explicitly provide `source`, `target`, and `merge`. `locales` determines whether the source and target messages are loaded, while `delivery.merge.enabled` determines whether the merge message is loaded. Selections in an inactive scope are not validated against message files until that scope is enabled.
 
-Source and target files define `added`, `modified`, and `deleted`; see [`target/english.yaml`](config/messages/target/english.yaml) for a detailed message. Merge files define `source` and `target` embeds, `entries.separator`, and one entry for each action. The built-in modified entry is:
+Source and target files define `added`, `modified`, and `deleted`; see [`target/english.yaml`](config/messages/target/english.yaml) for a detailed message. Merge files define `source` and `target` embeds, `entries.separator`, and one entry for each action. Built-in messages render value changes as:
 
 ````yaml
 diff:
   old: {color: red, bold: true, underline: false}
   new: {color: green, bold: true, underline: false}
-entries:
-  modified: |-
-    **[`{key}`]({change_url})**
-    ```ansi
-    − {old_diff}
-    + {new_diff}
-    ```
+modified:
+  fields:
+    - name: CHANGE
+      value: |-
+        ```ansi
+        − {old_diff}
+        + {new_diff}
+        ```
 ````
 
-`diff` is required when a file uses `{old_diff}` or `{new_diff}`. `color` accepts `gray`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, or `null`; `bold` and `underline` independently control emphasis.
+Merge entries use the same placeholders. `diff` is required when a file uses `{old_diff}` or `{new_diff}`. `color` accepts `gray`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, or `null`; `bold` and `underline` independently control emphasis.
 
 Embed definitions may use `title`, `description`, `fields`, `footer`, `author`, `image`, `thumbnail`, `url`, `timestamp`, and `color`. Components and fields appear only when written and in the listed order. Discord renders `timestamp` for each viewer; omit it to hide time.
 
@@ -191,6 +192,7 @@ YAML strings support these placeholders:
 | Placeholder | Value |
 | --- | --- |
 | `{key}` | Translation key |
+| `{key_link}` | Code-styled key linked to the change detail when available |
 | `{monitor_id}` | Monitor ID owning the change |
 | `{project}` | Localization project selected by the monitor |
 | `{source}` | English source text |
@@ -202,7 +204,7 @@ YAML strings support these placeholders:
 | `{actor_url}` | Editor profile URL, when available |
 | `{actor_avatar_url}` | Editor avatar URL, when available |
 | `{action}` | `added`, `modified`, or `deleted` |
-| `{change_url}` | Change-detail URL provided by the data source; an empty direct embed `url` is omitted |
+| `{change_url}` | Change-detail URL provided by the data source, when available |
 | `{timestamp}` | UTC ISO 8601 change time, suitable for Discord's native `timestamp` |
 | `{unix_time}` | Unix seconds for the change time, suitable for Discord timestamp markup |
 

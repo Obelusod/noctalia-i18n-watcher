@@ -199,9 +199,9 @@ class DiscordTests(unittest.TestCase):
             delivery=delivery_policy(merge=merge_policy(threshold=2)),
         )
         items = (
-            delivery(id="de-1", key="de.1", locale="de"),
-            delivery(id="fr-1", key="fr.1", locale="fr"),
-            delivery(id="de-2", key="de.2", locale="de"),
+            delivery(id="de-1", key="de.1", locale="de", url=None),
+            delivery(id="fr-1", key="fr.1", locale="fr", url=None),
+            delivery(id="de-2", key="de.2", locale="de", url=None),
         )
 
         embeds = DiscordNotifier(

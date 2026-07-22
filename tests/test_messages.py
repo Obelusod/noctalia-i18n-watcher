@@ -117,7 +117,25 @@ class MessageTests(unittest.TestCase):
         )
         self.assertEqual(
             [field["name"] for field in embed.get("fields", [])],
-            ["KEY", "ENGLISH", "OLD", "NEW"],
+            ["KEY", "ENGLISH", "CHANGE"],
+        )
+        self.assertEqual(
+            embed.get("fields", [])[0]["value"],
+            (
+                "[`settings.schema.notifications.border.description`]"
+                "(https://i18n.noctalia.dev/projects/noctalia/translate?search="
+                "settings.schema.notifications.border.description&locale=zh-Hans)"
+            ),
+        )
+        self.assertNotIn("url", embed)
+        self.assertEqual(
+            embed.get("fields", [])[-1]["value"],
+            (
+                "```ansi\n"
+                "− 在 Toast 通知周围绘制\x1b[1;31m边框\x1b[0m\n"
+                "+ 在 Toast 通知周围绘制\x1b[1;32m轮廓\x1b[0m\n"
+                "```"
+            ),
         )
         self.assertEqual(embed.get("timestamp"), "2026-07-17T09:51:04.838Z")
 
@@ -190,17 +208,21 @@ class MessageTests(unittest.TestCase):
                     ):
                         embed = message.render(action, values | {"action": action})
                         self.assertRegex(embed.get("title", ""), r"^\[[^]]+\] ")
+                        self.assertIn("```ansi", str(embed))
                         if path.stem == "compact":
                             self.assertNotIn("footer", embed)
                             self.assertNotIn("timestamp", embed)
                             self.assertNotIn("author", embed)
                             lines = embed.get("description", "").splitlines()
                             self.assertEqual(
-                                lines[:3],
+                                lines[:2],
                                 [
-                                    "**KEY**",
-                                    f"`{FIXTURE_KEY}`",
-                                    "**CHANGE**",
+                                    (
+                                        f"[`{FIXTURE_KEY}`]"
+                                        "(https://fixtures.invalid/changes/"
+                                        f"{FIXTURE_KEY})"
+                                    ),
+                                    "```ansi",
                                 ],
                             )
                         else:
@@ -218,6 +240,10 @@ class MessageTests(unittest.TestCase):
         )
 
         self.assertNotIn("url", embed)
+        self.assertEqual(
+            embed.get("fields", [])[0]["value"],
+            f"`{FIXTURE_KEY}`",
+        )
         self.assertEqual(
             embed.get("author"),
             {

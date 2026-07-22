@@ -167,22 +167,23 @@ sudo systemctl restart noctalia-i18n-watcher.timer
 
 `messages` 必须显式填写 `source`、`target` 和 `merge`。`locales` 决定是否加载 source 和 target 文案，`delivery.merge.enabled` 决定是否加载 merge 文案；未启用范围的选择在启用前不会根据文案文件进行校验。
 
-source 和 target 文件定义 `added`、`modified`、`deleted`，逐条文案可参考 [`target/chinese.yaml`](config/messages/target/chinese.yaml)。merge 文件定义 `source`、`target` Embed、`entries.separator` 和三种动作的条目排版。内置修改条目为：
+source 和 target 文件定义 `added`、`modified`、`deleted`，逐条文案可参考 [`target/chinese.yaml`](config/messages/target/chinese.yaml)。merge 文件定义 `source`、`target` Embed、`entries.separator` 和三种动作的条目排版。内置文案按以下格式显示值变更：
 
 ````yaml
 diff:
   old: {color: red, bold: true, underline: false}
   new: {color: green, bold: true, underline: false}
-entries:
-  modified: |-
-    **[`{key}`]({change_url})**
-    ```ansi
-    − {old_diff}
-    + {new_diff}
-    ```
+modified:
+  fields:
+    - name: 变更
+      value: |-
+        ```ansi
+        − {old_diff}
+        + {new_diff}
+        ```
 ````
 
-文案使用 `{old_diff}` 或 `{new_diff}` 时必须定义 `diff`。`color` 可填写 `gray`、`red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white` 或 `null`；`bold` 和 `underline` 分别控制加粗和下划线。
+合并条目使用相同占位符。文案使用 `{old_diff}` 或 `{new_diff}` 时必须定义 `diff`。`color` 可填写 `gray`、`red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white` 或 `null`；`bold` 和 `underline` 分别控制加粗和下划线。
 
 Embed 可使用 `title`、`description`、`fields`、`footer`、`author`、`image`、`thumbnail`、`url`、`timestamp` 和 `color`。组件和字段只在写出时显示，并保持配置顺序。Discord 按查看者设置渲染 `timestamp`，省略即可隐藏时间。
 
@@ -191,6 +192,7 @@ YAML 字符串支持以下占位符：
 | 占位符 | 内容 |
 | --- | --- |
 | `{key}` | 翻译键 |
+| `{key_link}` | 代码样式的翻译键；存在变更详情时附带链接 |
 | `{monitor_id}` | 当前变更所属的监听器 ID |
 | `{project}` | 监听器选择的本地化项目 |
 | `{source}` | 英文原文 |
@@ -202,7 +204,7 @@ YAML 字符串支持以下占位符：
 | `{actor_url}` | 编辑者主页 URL（如有） |
 | `{actor_avatar_url}` | 编辑者头像 URL（如有） |
 | `{action}` | `added`、`modified` 或 `deleted` |
-| `{change_url}` | 数据源提供的变更详情 URL；直接作为 Embed `url` 且为空时省略 |
+| `{change_url}` | 数据源提供的变更详情 URL（如有） |
 | `{timestamp}` | 变更发生时间的 UTC ISO 8601 值，可直接用于 Discord `timestamp` |
 | `{unix_time}` | 变更时间的 Unix 秒数，可用于 Discord 时间标记 |
 

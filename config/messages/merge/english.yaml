@@ -24,19 +24,19 @@ diff:
 entries:
   separator: "\n"
   added: |-
-    **[`{key}`]({change_url})**
+    **{key_link}**
     ```ansi
     − ∅
     + {new_diff}
     ```
   modified: |-
-    **[`{key}`]({change_url})**
+    **{key_link}**
     ```ansi
     − {old_diff}
     + {new_diff}
     ```
   deleted: |-
-    **[`{key}`]({change_url})**
+    **{key_link}**
     ```ansi
     − {old_diff}
     + ∅

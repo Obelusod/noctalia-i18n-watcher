@@ -1,6 +1,8 @@
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 added:
   title: "[English] Added 1 source text"
-  url: "{change_url}"
   timestamp: "{timestamp}"
   color: 0x57F287
   author:
@@ -9,14 +11,16 @@ added:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: KEY
-      value: "`{key}`"
+      value: "{key_link}"
       inline: false
-    - name: ENGLISH
-      value: "`{new_value}`"
+    - name: CHANGE
+      value: |-
+        ```ansi
+        + {new_diff}
+        ```
       inline: false
 modified:
   title: "[English] Modified 1 source text"
-  url: "{change_url}"
   timestamp: "{timestamp}"
   color: 0xFEE75C
   author:
@@ -25,17 +29,17 @@ modified:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: KEY
-      value: "`{key}`"
+      value: "{key_link}"
       inline: false
-    - name: OLD
-      value: "`{old_value}`"
-      inline: false
-    - name: NEW
-      value: "`{new_value}`"
+    - name: CHANGE
+      value: |-
+        ```ansi
+        − {old_diff}
+        + {new_diff}
+        ```
       inline: false
 deleted:
   title: "[English] Deleted 1 source text"
-  url: "{change_url}"
   timestamp: "{timestamp}"
   color: 0xED4245
   author:
@@ -44,8 +48,11 @@ deleted:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: KEY
-      value: "`{key}`"
+      value: "{key_link}"
       inline: false
-    - name: ENGLISH
-      value: "`{old_value}`"
+    - name: CHANGE
+      value: |-
+        ```ansi
+        − {old_diff}
+        ```
       inline: false

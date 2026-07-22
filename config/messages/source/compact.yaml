@@ -1,27 +1,28 @@
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 added:
   title: "[English] Added 1 source text"
-  url: "{change_url}"
   description: |-
-    **KEY**
-    `{key}`
-    **CHANGE**
-    `∅` → `{new_value}`
+    {key_link}
+    ```ansi
+    + {new_diff}
+    ```
   color: 0x57F287
 modified:
   title: "[English] Modified 1 source text"
-  url: "{change_url}"
   description: |-
-    **KEY**
-    `{key}`
-    **CHANGE**
-    `{old_value}` → `{new_value}`
+    {key_link}
+    ```ansi
+    − {old_diff}
+    + {new_diff}
+    ```
   color: 0xFEE75C
 deleted:
   title: "[English] Deleted 1 source text"
-  url: "{change_url}"
   description: |-
-    **KEY**
-    `{key}`
-    **CHANGE**
-    `{old_value}` → `∅`
+    {key_link}
+    ```ansi
+    − {old_diff}
+    ```
   color: 0xED4245

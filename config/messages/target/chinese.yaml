@@ -1,6 +1,8 @@
+diff:
+  old: {color: red, bold: true, underline: false}
+  new: {color: green, bold: true, underline: false}
 added:
   title: "[{locale}] 新增了 1 条译文"
-  url: "{change_url}"
   timestamp: "{timestamp}"
   color: 0x57F287
   author:
@@ -9,17 +11,19 @@ added:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: 键名
-      value: "`{key}`"
+      value: "{key_link}"
       inline: false
     - name: 英文
       value: "`{source}`"
       inline: false
-    - name: 新值
-      value: "`{new_value}`"
+    - name: 变更
+      value: |-
+        ```ansi
+        + {new_diff}
+        ```
       inline: false
 modified:
   title: "[{locale}] 修改了 1 条译文"
-  url: "{change_url}"
   timestamp: "{timestamp}"
   color: 0xFEE75C
   author:
@@ -28,20 +32,20 @@ modified:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: 键名
-      value: "`{key}`"
+      value: "{key_link}"
       inline: false
     - name: 英文
       value: "`{source}`"
       inline: false
-    - name: 旧值
-      value: "`{old_value}`"
-      inline: false
-    - name: 新值
-      value: "`{new_value}`"
+    - name: 变更
+      value: |-
+        ```ansi
+        − {old_diff}
+        + {new_diff}
+        ```
       inline: false
 deleted:
   title: "[{locale}] 删除了 1 条译文"
-  url: "{change_url}"
   timestamp: "{timestamp}"
   color: 0xED4245
   author:
@@ -50,11 +54,14 @@ deleted:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: 键名
-      value: "`{key}`"
+      value: "{key_link}"
       inline: false
     - name: 英文
       value: "`{source}`"
       inline: false
-    - name: 旧值
-      value: "`{old_value}`"
+    - name: 变更
+      value: |-
+        ```ansi
+        − {old_diff}
+        ```
       inline: false
