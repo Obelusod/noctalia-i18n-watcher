@@ -67,5 +67,5 @@ done < <(
 "$SOURCE_DIR/scripts/update.sh"
 
 echo "Installation complete. Edit $CONFIG_DIR/config.json, then run:"
-echo "  sudo noctalia-i18n-watcher check"
-echo "  sudo noctalia-i18n-watcher run"
+echo "  sudo noctalia-i18n-watcher validate"
+echo "  sudo systemctl enable --now noctalia-i18n-watcher.timer"

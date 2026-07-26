@@ -43,10 +43,10 @@ class Source(Protocol):
 
 
 @runtime_checkable
-class PagedSource(Protocol):
-    """Optional capability for reading historical change pages."""
+class HistorySource(Protocol):
+    """Optional capability for reading source-native change history."""
 
-    def page(self, number: int, /) -> tuple[Change, ...]:
+    def history(self, page: int, /) -> tuple[Change, ...]:
         """Return one source-native history page using a one-based number."""
 
         ...

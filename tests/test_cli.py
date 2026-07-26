@@ -29,11 +29,9 @@ class CliTests(unittest.TestCase):
     def test_invalid_command_lines_exit_with_usage(self) -> None:
         cases = (
             [],
-            ["run", "--dry-run", "--flush"],
+            ["--scheduled", "deliver"],
             ["reset"],
-            ["reset", "--flush"],
-            ["status", "--flush"],
-            ["changes", "0"],
+            ["history", "0"],
         )
         for arguments in cases:
             with (
@@ -54,19 +52,19 @@ class CliTests(unittest.TestCase):
             ),
             redirect_stdout(StringIO()) as output,
         ):
-            self.assertEqual(main(["run", "--dry-run"]), 0)
+            self.assertEqual(main(["deliver", "--dry-run"]), 0)
         application.preview.assert_called_once_with(None)
         self.assertIn('"route_id": "default"', output.getvalue())
 
     def test_commands_dispatch_to_the_application_interface(self) -> None:
         cases = (
-            (["run"], "run", (None,), {"flush": False}),
-            (["run", "--flush"], "run", (None,), {"flush": True}),
+            (["--scheduled"], "run", (), {}),
+            (["deliver"], "run", (None,), {"flush": True}),
             (
-                ["run", "--monitor", "plugins"],
+                ["deliver", "--monitor", "plugins"],
                 "run",
                 ("plugins",),
-                {"flush": False},
+                {"flush": True},
             ),
             (
                 ["reset", "baseline"],
@@ -108,7 +106,7 @@ class CliTests(unittest.TestCase):
                 **keywords,
             )
 
-    def test_check_reports_success(self) -> None:
+    def test_validate_reports_success(self) -> None:
         application = MagicMock(log_level="INFO")
         with (
             patch(
@@ -117,8 +115,8 @@ class CliTests(unittest.TestCase):
             ),
             redirect_stdout(StringIO()) as output,
         ):
-            self.assertEqual(main(["check", "--monitor", "plugins"]), 0)
-        application.check.assert_called_once_with("plugins")
+            self.assertEqual(main(["validate", "--monitor", "plugins"]), 0)
+        application.validate.assert_called_once_with("plugins")
         self.assertIn("valid", output.getvalue().lower())
 
     def test_status_serializes_the_summary_and_honors_notify(self) -> None:
@@ -152,9 +150,9 @@ class CliTests(unittest.TestCase):
             self.assertIn('"noctalia"', output.getvalue())
             self.assertIn('"initialized": true', output.getvalue())
 
-    def test_changes_serializes_application_data(self) -> None:
+    def test_history_serializes_application_data(self) -> None:
         application = MagicMock(log_level="INFO")
-        application.changes.return_value = (recorded_change(),)
+        application.history.return_value = (recorded_change(),)
         with (
             patch(
                 "noctalia_i18n_watcher.cli.Application.load",
@@ -162,8 +160,8 @@ class CliTests(unittest.TestCase):
             ),
             redirect_stdout(StringIO()) as output,
         ):
-            self.assertEqual(main(["changes", "2", "--monitor", "plugins"]), 0)
-        application.changes.assert_called_once_with(2, "plugins")
+            self.assertEqual(main(["history", "2", "--monitor", "plugins"]), 0)
+        application.history.assert_called_once_with(2, "plugins")
         self.assertIn('"locale": "zh-Hans"', output.getvalue())
         self.assertIn('"occurred_at": "2026-07-17T09:51:04.838Z"', output.getvalue())
 
@@ -177,5 +175,5 @@ class CliTests(unittest.TestCase):
             ),
             self.assertLogs(level="ERROR") as logs,
         ):
-            self.assertEqual(main(["run"]), 1)
+            self.assertEqual(main(["deliver"]), 1)
         self.assertIn("safe failure", logs.output[0])

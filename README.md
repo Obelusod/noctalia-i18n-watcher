@@ -16,7 +16,7 @@ By default, the built-in web adapter monitors `noctalia`. Other projects such as
 - Persist baselines, source cursors, pending deliveries, and delivery receipts so processing can resume after a restart.
 - Continue with later monitors after one fails; retain pending Discord deliveries without repeating successful ones.
 - Disable Discord mention parsing so webhook messages cannot unexpectedly notify users, roles, or `@everyone`.
-- Manage immediate runs, read-only previews, status inspection, history pages, and baseline resets from the command line.
+- Manage immediate deliveries, read-only previews, status inspection, history pages, and baseline resets from the command line.
 - Add another upstream through a source adapter without changing monitoring, messages, or Discord delivery.
 
 ## Message format
@@ -241,8 +241,7 @@ Requirements: Debian or Ubuntu with systemd and `apt-get`, Python 3.12+, root ac
 ```bash
 sudo bash scripts/install.sh
 sudoedit /etc/noctalia-i18n-watcher/config.json
-sudo noctalia-i18n-watcher check
-sudo noctalia-i18n-watcher run
+sudo noctalia-i18n-watcher validate
 sudo systemctl enable --now noctalia-i18n-watcher.timer
 ```
 
@@ -276,14 +275,14 @@ Run `noctalia-i18n-watcher --help` to display the installed command summary. Ope
 
 | Command | Purpose |
 | --- | --- |
-| `sudo noctalia-i18n-watcher run [--monitor ID] [--dry-run]` | Collect immediately and flush the current queue; `--dry-run` only previews without sending or writing state |
+| `sudo noctalia-i18n-watcher deliver [--monitor ID] [--dry-run]` | Collect immediately and deliver the current queue; `--dry-run` only previews without sending or writing state |
 | `sudo noctalia-i18n-watcher reset baseline [--monitor ID] [--notify]` | Rebuild the source cursor and English source-text snapshot; `--notify` sends a baseline summary |
 | `sudo noctalia-i18n-watcher reset state [--monitor ID] [--notify]` | Clear monitoring state and create a new baseline; `--notify` sends a baseline summary |
-| `sudo noctalia-i18n-watcher check [--monitor ID]` | Validate configuration, messages, and state without polling sources or contacting Discord |
+| `sudo noctalia-i18n-watcher validate [--monitor ID]` | Validate configuration, messages, and state without polling sources or contacting Discord |
 | `sudo noctalia-i18n-watcher status [--monitor ID] [--notify]` | Show the timer state, last service result, and persisted monitoring summaries; `--notify` sends status summaries |
-| `sudo noctalia-i18n-watcher changes 1 [--monitor ID]` | Display the first source-native history page without sending or writing state |
+| `sudo noctalia-i18n-watcher history 1 [--monitor ID]` | Display the first source-native history page without sending or writing state |
 
-Without `--monitor`, `run`, `reset`, `check`, and `status` operate on every configured monitor. `changes` requires `--monitor` when more than one exists. Its page number starts at 1. Reset operations pause the timer and restore its previous running state.
+Without `--monitor`, `deliver`, `reset`, `validate`, and `status` operate on every configured monitor. `history` requires `--monitor` when more than one exists. Its page number starts at 1. Reset operations pause the timer and restore its previous running state.
 
 ### Editing configuration
 
@@ -302,7 +301,7 @@ sudoedit /etc/noctalia-i18n-watcher/messages/target/chinese.yaml
 Validate all runtime configuration after editing:
 
 ```bash
-sudo noctalia-i18n-watcher check
+sudo noctalia-i18n-watcher validate
 ```
 
 Changes load on the next run; edit the schedule under [Check interval](#check-interval).
@@ -355,7 +354,7 @@ Add `noctalia_i18n_watcher/sources/<adapter>.py` with the same name as `monitors
 | `create(options, *, project, timeout, proxy)` | Construct the selected project source without network I/O after validating adapter options |
 | `poll(cursor)` | Return a `PollResult` for the adapter-owned JSON cursor |
 | `close()` | Release every resource owned by the adapter |
-| `page(number)` | Optional one-based historical page used by the `changes` command |
+| `history(page)` | Optional capability returning a one-based source-native history page |
 
 `PollResult` contains the changes, an adapter-owned JSON cursor, the scanned count, and `source_texts`. Initial polls and polls with changes include the complete English source-text mapping; an unchanged poll may omit `source_texts`. Keep IDs stable, order changes oldest-first, include timezones, and reject cursors from another adapter or project.
 

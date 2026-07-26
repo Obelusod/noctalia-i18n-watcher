@@ -123,7 +123,7 @@ python3 -m venv "$STAGING_DIR/.venv"
 chmod -R u=rwX,go=rX "$STAGING_DIR"
 CREDENTIALS_DIRECTORY=$CONFIG_DIR STATE_DIRECTORY=$STATE_DIR \
   /usr/bin/env --chdir="$STAGING_DIR" \
-  "$STAGING_DIR/.venv/bin/python" -m noctalia_i18n_watcher check
+  "$STAGING_DIR/.venv/bin/python" -m noctalia_i18n_watcher validate
 
 if systemctl is-active --quiet "$TIMER_NAME"; then
   timer_was_active=true
@@ -161,7 +161,7 @@ install -o root -g root -m 0755 "$SOURCE_DIR/scripts/manage.sh" "$MANAGER_PATH"
 systemctl daemon-reload
 systemd-analyze verify "$SYSTEMD_DIR/$SERVICE_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
 runuser -u "$SERVICE_USER" -- /usr/bin/env --chdir="$APP_DIR" \
-  "$APP_DIR/.venv/bin/python" -m noctalia_i18n_watcher check
+  "$APP_DIR/.venv/bin/python" -m noctalia_i18n_watcher validate
 
 if [[ $timer_was_active == true ]]; then
   systemctl start "$TIMER_NAME"

@@ -8,21 +8,12 @@ TIMER_NAME=noctalia-i18n-watcher.timer
 PYTHON=$APP_DIR/.venv/bin/python
 
 show_help() {
-  printf '%s\n' \
-    "Usage: noctalia-i18n-watcher COMMAND" \
-    "" \
-    "Commands:" \
-    "  run [--monitor ID] [--dry-run]" \
-    "                  Collect changes and immediately deliver queued notifications" \
-    "  reset {baseline,state} [--monitor ID] [--notify]" \
-    "                  Rebuild the baseline or clear all monitoring state" \
-    "  check [--monitor ID]" \
-    "                  Validate configuration, messages, and state" \
-    "  status [--monitor ID] [--notify]" \
-    "                  Show monitoring state; optionally notify Discord" \
-    "  changes PAGE [--monitor ID]" \
-    "                  Show one page of source changes" \
-    "  help            Show this help"
+  if [[ ! -x $PYTHON ]]; then
+    echo "Noctalia i18n Watcher is not installed." >&2
+    exit 1
+  fi
+  /usr/bin/env --chdir="$APP_DIR" \
+    "$PYTHON" -m noctalia_i18n_watcher --help
 }
 
 case ${1:-} in
@@ -89,16 +80,16 @@ show_status() {
 }
 
 case ${1:-} in
-  check)
+  validate)
     run_application "$@"
     ;;
-  changes)
+  history)
     run_application "$@"
     ;;
   reset)
     maintenance run_application "$@"
     ;;
-  run)
+  deliver)
     dry_run=false
     for argument in "${@:2}"; do
       if [[ $argument == --dry-run ]]; then
@@ -108,7 +99,7 @@ case ${1:-} in
     if [[ $dry_run == true ]]; then
       run_application "$@"
     else
-      maintenance run_application "$@" --flush
+      maintenance run_application "$@"
     fi
     ;;
   status)

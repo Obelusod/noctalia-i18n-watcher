@@ -9,7 +9,7 @@ from pathlib import Path
 
 from noctalia_i18n_watcher.config import load_config
 from noctalia_i18n_watcher.discord import DiscordNotifier
-from noctalia_i18n_watcher.sources import PagedSource, build_source
+from noctalia_i18n_watcher.sources import HistorySource, build_source
 
 from .factories import discord_options, discord_route, recorded_delivery
 from .fixtures import CONFIG_PATH
@@ -34,7 +34,9 @@ class LiveSourceTests(unittest.TestCase):
                     )
                 ) as source,
             ):
-                changes = source.page(1) if isinstance(source, PagedSource) else None
+                changes = (
+                    source.history(1) if isinstance(source, HistorySource) else None
+                )
                 baseline = source.poll(None)
                 followup = source.poll(baseline.cursor)
 

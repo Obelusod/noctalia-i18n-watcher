@@ -413,12 +413,12 @@ class WebSource:
             include_texts=bool(collected),
         )
 
-    def page(self, number: int, /) -> tuple[Change, ...]:
+    def history(self, page: int, /) -> tuple[Change, ...]:
         """Fetch and parse one Recent Changes page."""
 
-        if number < 1:
+        if page < 1:
             raise ValueError("page number must be at least 1")
-        return self._fetch_page(number).changes
+        return self._fetch_page(page).changes
 
     def close(self) -> None:
         self._session.close()

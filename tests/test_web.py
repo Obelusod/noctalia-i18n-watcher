@@ -176,7 +176,7 @@ class WebSourceTests(unittest.TestCase):
     def test_page_parses_the_recorded_changes_without_rewriting_them(self) -> None:
         source, _ = _source(_html_response(RECENT_CHANGES_HTML))
 
-        changes = source.page(1)
+        changes = source.history(1)
 
         self.assertEqual(len(changes), 2)
         self.assertEqual(
@@ -231,7 +231,7 @@ class WebSourceTests(unittest.TestCase):
         html = html.replace("A complete modified value", "modified…", 1)
         source, _ = _source(_html_response(html))
 
-        changed = source.page(1)[0]
+        changed = source.history(1)[0]
 
         self.assertEqual(changed.old_value, "A complete original value")
         self.assertEqual(changed.new_value, "A complete modified value")
@@ -247,7 +247,7 @@ class WebSourceTests(unittest.TestCase):
         )
         source, _ = _source(_html_response(_page(record)))
 
-        changed = source.page(1)[0]
+        changed = source.history(1)[0]
 
         self.assertEqual(changed.locale, "sr-Latn-RS")
         self.assertEqual(changed.actor, "API")
@@ -270,7 +270,7 @@ class WebSourceTests(unittest.TestCase):
             )
         )
 
-        changed = source.page(1)[0]
+        changed = source.history(1)[0]
 
         self.assertEqual(
             (changed.action, changed.old_value, changed.new_value),
@@ -280,7 +280,7 @@ class WebSourceTests(unittest.TestCase):
     def test_page_returns_an_empty_out_of_range_history_page(self) -> None:
         source, _ = _source(_html_response(_page(page=2, total_pages=1)))
 
-        self.assertEqual(source.page(2), ())
+        self.assertEqual(source.history(2), ())
 
     def test_page_rejects_incomplete_or_inconsistent_upstream_data(self) -> None:
         cases = (
@@ -325,7 +325,7 @@ class WebSourceTests(unittest.TestCase):
                 self.subTest(name=name),
                 self.assertRaisesRegex(WatcherError, "Recent Changes"),
             ):
-                source.page(1)
+                source.history(1)
 
     def test_page_ignores_links_outside_recent_changes(self) -> None:
         html = (
@@ -334,7 +334,7 @@ class WebSourceTests(unittest.TestCase):
         )
         source, _ = _source(_html_response(html))
 
-        self.assertEqual(len(source.page(1)), 2)
+        self.assertEqual(len(source.history(1)), 2)
 
     def test_source_satisfies_the_shared_polling_contract(self) -> None:
         baseline = _records("fixture.baseline", 5)
@@ -517,7 +517,7 @@ class WebSourceTests(unittest.TestCase):
             session,
         )
 
-        source.page(1)
+        source.history(1)
 
         self.assertFalse(session.trust_env)
         self.assertEqual(session.proxies, {"http": proxy, "https": proxy})
@@ -527,7 +527,7 @@ class WebSourceTests(unittest.TestCase):
             timeout=30,
         )
         with self.assertRaisesRegex(ValueError, "at least 1"):
-            source.page(0)
+            source.history(0)
 
     def test_project_selects_its_export_endpoint(self) -> None:
         project = "community-plugins"
@@ -553,7 +553,7 @@ class WebSourceTests(unittest.TestCase):
         source, _ = _source(error)
 
         with self.assertRaises(WatcherError) as raised:
-            source.page(1)
+            source.history(1)
 
         self.assertEqual(
             str(raised.exception),

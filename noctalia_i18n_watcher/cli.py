@@ -15,13 +15,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class _Arguments(argparse.Namespace):
-    command: str
+    command: str | None = None
     monitor: str | None = None
     dry_run: bool = False
-    flush: bool = False
     notify: bool = False
     page: int = 1
     reset_scope: ResetScope = "baseline"
+    scheduled: bool = False
 
 
 def _positive_page(value: str) -> int:
@@ -44,20 +44,22 @@ def _parser() -> argparse.ArgumentParser:
         prog="noctalia-i18n-watcher",
         description="Monitor Noctalia translation changes and notify Discord.",
     )
-    commands = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument(
+        "--scheduled",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    commands = parser.add_subparsers(dest="command")
 
-    run = commands.add_parser("run", help="Collect changes and deliver notifications.")
-    _monitor_option(run)
-    mode = run.add_mutually_exclusive_group()
-    mode.add_argument(
+    deliver = commands.add_parser(
+        "deliver",
+        help="Collect changes and immediately deliver queued notifications.",
+    )
+    _monitor_option(deliver)
+    deliver.add_argument(
         "--dry-run",
         action="store_true",
         help="Preview pending changes without sending or saving them.",
-    )
-    mode.add_argument(
-        "--flush",
-        action="store_true",
-        help="Deliver queued changes without waiting for the delivery window.",
     )
     reset = commands.add_parser(
         "reset",
@@ -77,8 +79,11 @@ def _parser() -> argparse.ArgumentParser:
             help="Send a new baseline notification to configured Discord routes.",
         )
 
-    check = commands.add_parser("check", help="Validate the runtime configuration.")
-    _monitor_option(check)
+    validate = commands.add_parser(
+        "validate",
+        help="Validate the runtime configuration.",
+    )
+    _monitor_option(validate)
     status = commands.add_parser("status", help="Show persisted monitoring state.")
     _monitor_option(status)
     status.add_argument(
@@ -86,9 +91,9 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Send the current status to configured Discord routes.",
     )
-    changes = commands.add_parser("changes", help="Read a page of source changes.")
-    _monitor_option(changes)
-    changes.add_argument(
+    history = commands.add_parser("history", help="Read a source history page.")
+    _monitor_option(history)
+    history.add_argument(
         "page",
         type=_positive_page,
         metavar="PAGE",
@@ -98,7 +103,14 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> _Arguments:
-    return _parser().parse_args(argv, namespace=_Arguments())
+    parser = _parser()
+    arguments = parser.parse_args(argv, namespace=_Arguments())
+    if arguments.scheduled:
+        if arguments.command is not None:
+            parser.error("--scheduled cannot be combined with a command")
+    elif arguments.command is None:
+        parser.error("a command is required")
+    return arguments
 
 
 def _print_json(value: object) -> None:
@@ -114,20 +126,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         application = Application.load()
         logging.getLogger().setLevel(application.log_level)
-        if args.command == "run":
+        if args.scheduled:
+            application.run()
+        elif args.command == "deliver":
             if args.dry_run:
                 for item in application.preview(args.monitor):
                     _print_json(item)
             else:
-                application.run(args.monitor, flush=args.flush)
+                application.run(args.monitor, flush=True)
         elif args.command == "reset":
             application.reset(
                 args.reset_scope,
                 args.monitor,
                 notify=args.notify,
             )
-        elif args.command == "check":
-            application.check(args.monitor)
+        elif args.command == "validate":
+            application.validate(args.monitor)
             print("Configuration valid.")
         elif args.command == "status":
             _print_json(
@@ -138,11 +152,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ).items()
                 }
             )
-        elif args.command == "changes":
+        elif args.command == "history":
             _print_json(
                 [
                     asdict(change) | {"occurred_at": change.iso_timestamp}
-                    for change in application.changes(args.page, args.monitor)
+                    for change in application.history(args.page, args.monitor)
                 ]
             )
         else:

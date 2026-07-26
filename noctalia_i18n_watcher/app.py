@@ -14,7 +14,7 @@ from .discord import DiscordNotifier, DiscordOptions, DiscordRoute
 from .messages import load_merge, load_message
 from .models import Change, JsonValue, ResetScope, StateSummary, WatcherError
 from .monitor import Monitor, RunResult
-from .sources import PagedSource, Source, build_source
+from .sources import HistorySource, Source, build_source
 from .state import SQLiteState, execution_lock
 
 _LOGGER = logging.getLogger(__name__)
@@ -139,7 +139,7 @@ class Application:
         self._raise_failures("Status", failures)
         return summaries
 
-    def check(self, monitor_id: str | None = None) -> None:
+    def validate(self, monitor_id: str | None = None) -> None:
         """Construct every configured component without network access."""
 
         failures: list[tuple[str, WatcherError]] = []
@@ -155,16 +155,16 @@ class Application:
                     state.summary()
             except WatcherError as exc:
                 failures.append((config.id, exc))
-        self._raise_failures("Check", failures)
+        self._raise_failures("Validation", failures)
 
-    def changes(self, page: int, monitor_id: str | None = None) -> tuple[Change, ...]:
+    def history(self, page: int, monitor_id: str | None = None) -> tuple[Change, ...]:
         """Read a historical change page when the source supports it."""
 
-        config = self._single(monitor_id, "changes")
+        config = self._single(monitor_id, "history")
         with closing(self._source(config)) as source:
-            if not isinstance(source, PagedSource):
-                raise WatcherError("The configured source does not expose change pages")
-            return source.page(page)
+            if not isinstance(source, HistorySource):
+                raise WatcherError("The configured source does not expose history")
+            return source.history(page)
 
     @contextmanager
     def _monitor(

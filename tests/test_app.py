@@ -37,21 +37,21 @@ class _StubSource:
     def __init__(
         self,
         result: PollResult,
-        pages: tuple[tuple[Change, ...], ...] = (),
+        history: tuple[tuple[Change, ...], ...] = (),
     ) -> None:
         self.result = result
-        self.pages = pages
+        self.history_pages = history
         self.cursors: list[JsonValue | None] = []
-        self.page_numbers: list[int] = []
+        self.history_requests: list[int] = []
         self.closed = False
 
     def poll(self, cursor: JsonValue | None, /) -> PollResult:
         self.cursors.append(cursor)
         return self.result
 
-    def page(self, number: int, /) -> tuple[Change, ...]:
-        self.page_numbers.append(number)
-        return self.pages[number - 1]
+    def history(self, page: int, /) -> tuple[Change, ...]:
+        self.history_requests.append(page)
+        return self.history_pages[page - 1]
 
     def close(self) -> None:
         self.closed = True
@@ -72,7 +72,7 @@ class ApplicationTests(unittest.TestCase):
     def test_repository_runtime_inputs_are_valid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             paths = self._paths(Path(directory))
-            Application.load(paths).check()
+            Application.load(paths).validate()
 
     def test_runtime_paths_follow_service_environment(self) -> None:
         paths = RuntimePaths.from_environment(
@@ -133,7 +133,7 @@ class ApplicationTests(unittest.TestCase):
             self.fail("Preview did not return an embed object")
         self.assertTrue(embed)
 
-    def test_check_ignores_messages_outside_the_route_scope(self) -> None:
+    def test_validation_ignores_messages_outside_the_route_scope(self) -> None:
         source_only = webhook_config(
             locales=frozenset({"en"}),
             messages=MessageSelection(
@@ -149,7 +149,7 @@ class ApplicationTests(unittest.TestCase):
             Application(
                 app_config(monitor_config(source_only)),
                 paths,
-            ).check()
+            ).validate()
 
     def test_status_reads_persisted_state_without_modifying_it(self) -> None:
         checkpoint = Checkpoint({"cursor": "one"}, {"key": "English"})
@@ -185,7 +185,7 @@ class ApplicationTests(unittest.TestCase):
 
         send_status.assert_has_calls([call("first", summary), call("second", summary)])
 
-    def test_changes_exposes_paged_source_data_and_closes_the_source(self) -> None:
+    def test_history_exposes_paged_source_data_and_closes_the_source(self) -> None:
         expected = (recorded_change(),)
         source = _StubSource(PollResult((), "cursor", 0), (expected,))
 
@@ -196,10 +196,10 @@ class ApplicationTests(unittest.TestCase):
             changes = Application(
                 app_config(),
                 self._paths(Path("unused")),
-            ).changes(1)
+            ).history(1)
 
         self.assertEqual(changes, expected)
-        self.assertEqual(source.page_numbers, [1])
+        self.assertEqual(source.history_requests, [1])
         self.assertTrue(source.closed)
 
     def test_status_keeps_monitor_state_isolated(self) -> None:
@@ -289,7 +289,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(source.cursors, ["cursor"])
         self.assertTrue(source.closed)
 
-    def test_changes_requires_selection_with_multiple_monitors(self) -> None:
+    def test_history_requires_selection_with_multiple_monitors(self) -> None:
         with self.assertRaisesRegex(WatcherError, "requires --monitor"):
             Application(
                 app_config(
@@ -297,4 +297,4 @@ class ApplicationTests(unittest.TestCase):
                     monitor_config(id="community-plugins"),
                 ),
                 self._paths(Path("unused")),
-            ).changes(1)
+            ).history(1)

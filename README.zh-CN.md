@@ -16,7 +16,7 @@ Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/p
 - 持久保存基线、数据源游标、待投递消息和投递回执，重启后可继续处理。
 - 单个监听器失败不会阻止后续监听器；Discord 路由失败时保留待投递消息，已成功投递不会重复。
 - Webhook 消息禁用 Discord 提及解析，不会意外通知用户、角色或 `@everyone`。
-- 提供立即运行、只读预览、状态查询、历史查看和基线重建等管理命令。
+- 提供立即投递、只读预览、状态查询、历史查看和基线重建等管理命令。
 - 数据采集通过适配器接入，新增上游无需修改监控、文案或 Discord 投递模块。
 
 ## 消息格式
@@ -241,8 +241,7 @@ icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
 ```bash
 sudo bash scripts/install.sh
 sudoedit /etc/noctalia-i18n-watcher/config.json
-sudo noctalia-i18n-watcher check
-sudo noctalia-i18n-watcher run
+sudo noctalia-i18n-watcher validate
 sudo systemctl enable --now noctalia-i18n-watcher.timer
 ```
 
@@ -276,14 +275,14 @@ sudo bash scripts/uninstall.sh --purge
 
 | 命令 | 用途 |
 | --- | --- |
-| `sudo noctalia-i18n-watcher run [--monitor ID] [--dry-run]` | 立即采集并投递当前队列；`--dry-run` 仅预览，不发送或写入状态 |
+| `sudo noctalia-i18n-watcher deliver [--monitor ID] [--dry-run]` | 立即采集并投递当前队列；`--dry-run` 仅预览，不发送或写入状态 |
 | `sudo noctalia-i18n-watcher reset baseline [--monitor ID] [--notify]` | 重建数据源游标和英文原文快照；`--notify` 发送基线摘要 |
 | `sudo noctalia-i18n-watcher reset state [--monitor ID] [--notify]` | 清空监听状态并重新建立基线；`--notify` 发送基线摘要 |
-| `sudo noctalia-i18n-watcher check [--monitor ID]` | 校验配置、文案和状态，不轮询数据源或连接 Discord |
+| `sudo noctalia-i18n-watcher validate [--monitor ID]` | 校验配置、文案和状态，不轮询数据源或连接 Discord |
 | `sudo noctalia-i18n-watcher status [--monitor ID] [--notify]` | 查看 timer 状态、上次服务结果和各监听器的状态摘要；`--notify` 发送状态摘要 |
-| `sudo noctalia-i18n-watcher changes 1 [--monitor ID]` | 查看数据源原生历史记录的第一页，不发送消息或写入状态 |
+| `sudo noctalia-i18n-watcher history 1 [--monitor ID]` | 查看数据源原生历史记录的第一页，不发送消息或写入状态 |
 
-未指定 `--monitor` 时，`run`、`reset`、`check` 和 `status` 会处理全部监听器；配置多个监听器时，`changes` 必须指定目标。其页码从 1 开始。重置操作会暂停 timer，并在结束后恢复原有运行状态。
+未指定 `--monitor` 时，`deliver`、`reset`、`validate` 和 `status` 会处理全部监听器；配置多个监听器时，`history` 必须指定目标。其页码从 1 开始。重置操作会暂停 timer，并在结束后恢复原有运行状态。
 
 ### 修改配置
 
@@ -302,7 +301,7 @@ sudoedit /etc/noctalia-i18n-watcher/messages/target/chinese.yaml
 修改后校验全部运行配置：
 
 ```bash
-sudo noctalia-i18n-watcher check
+sudo noctalia-i18n-watcher validate
 ```
 
 文件会在下次运行时加载；检查周期参见[检查周期](#检查周期)。
@@ -355,7 +354,7 @@ uv run basedpyright
 | `create(options, *, project, timeout, proxy)` | 校验适配器选项，并在不联网的情况下构造所选项目的数据源 |
 | `poll(cursor)` | 根据适配器自有的 JSON 游标返回 `PollResult` |
 | `close()` | 释放适配器持有的全部资源 |
-| `page(number)` | 可选的一页历史记录，页码从 1 开始，用于 `changes` 命令 |
+| `history(page)` | 可选能力；按从 1 开始的页码返回数据源原生历史记录 |
 
 `PollResult` 包含变更、适配器自有 JSON 游标、扫描数量和 `source_texts`。初次轮询及包含变更的轮询提供完整英文原文映射；已有基线且无变更时可省略 `source_texts`。变更 ID 必须稳定、按时间从旧到新排列并带时区；属于其他适配器或项目的游标必须报错。
 

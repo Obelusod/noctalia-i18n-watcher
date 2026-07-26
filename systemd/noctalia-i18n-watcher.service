@@ -9,7 +9,7 @@ User=noctalia-i18n-watcher
 Group=noctalia-i18n-watcher
 WorkingDirectory=/opt/noctalia-i18n-watcher
 LoadCredential=config.json:/etc/noctalia-i18n-watcher/config.json
-ExecStart=/opt/noctalia-i18n-watcher/.venv/bin/python -m noctalia_i18n_watcher run
+ExecStart=/opt/noctalia-i18n-watcher/.venv/bin/python -m noctalia_i18n_watcher --scheduled
 TimeoutStartSec=infinity
 
 StateDirectory=noctalia-i18n-watcher
