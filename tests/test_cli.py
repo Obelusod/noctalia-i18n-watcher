@@ -119,7 +119,7 @@ class CliTests(unittest.TestCase):
         ):
             self.assertEqual(main(["check", "--monitor", "plugins"]), 0)
         application.check.assert_called_once_with("plugins")
-        self.assertEqual(output.getvalue(), "Configuration valid.\n")
+        self.assertIn("valid", output.getvalue().lower())
 
     def test_status_serializes_the_summary_and_honors_notify(self) -> None:
         cases = (

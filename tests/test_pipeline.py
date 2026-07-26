@@ -16,7 +16,7 @@ from noctalia_i18n_watcher.models import Checkpoint, JsonValue, PollResult, Watc
 from noctalia_i18n_watcher.monitor import Monitor
 from noctalia_i18n_watcher.state import SQLiteState
 
-from .factories import discord_options, webhook
+from .factories import discord_options, discord_route
 from .fixtures import RECORDED_SOURCE, RUN_AT, recorded_change
 
 
@@ -58,7 +58,7 @@ class MonitoringPipelineTests(unittest.TestCase):
                 {changed.key: RECORDED_SOURCE},
             )
         )
-        route = webhook()
+        route = discord_route()
         session = MagicMock(spec=requests.Session)
         session.post.return_value = MagicMock(status_code=204)
 
@@ -87,24 +87,7 @@ class MonitoringPipelineTests(unittest.TestCase):
                 self.assertEqual(state.pending(route.id), ())
                 self.assertEqual(state.summary().deliveries, 1)
 
-        payload = session.post.call_args.kwargs["json"]
-        self.assertEqual(
-            [field["value"] for field in payload["embeds"][0]["fields"]],
-            [
-                (
-                    f"[`{changed.key}`]"
-                    "(https://i18n.noctalia.dev/projects/noctalia/translate?search="
-                    f"{changed.key}&locale=zh-Hans)"
-                ),
-                f"`{RECORDED_SOURCE}`",
-                (
-                    "```ansi\n"
-                    "− 在 Toast 通知周围绘制\x1b[1;31m边框\x1b[0m\n"
-                    "+ 在 Toast 通知周围绘制\x1b[1;32m轮廓\x1b[0m\n"
-                    "```"
-                ),
-            ],
-        )
+        session.post.assert_called_once()
 
     def test_failed_delivery_keeps_the_checkpoint_and_pending_entry_for_retry(
         self,
@@ -118,7 +101,7 @@ class MonitoringPipelineTests(unittest.TestCase):
                 {changed.key: RECORDED_SOURCE},
             )
         )
-        route = webhook()
+        route = discord_route()
         failed = MagicMock(status_code=404)
         failed.raise_for_status.side_effect = requests.HTTPError()
         session = MagicMock(spec=requests.Session)

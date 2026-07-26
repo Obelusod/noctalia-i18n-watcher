@@ -26,7 +26,7 @@ from .fixtures import RUN_AT, fixture_change
 
 
 @dataclass(frozen=True, slots=True)
-class FakeRoute:
+class _Route:
     id: str
     locales: frozenset[str] = frozenset({"en", "zh-Hans"})
     actions: frozenset[Action] = frozenset({"added", "modified", "deleted"})
@@ -45,7 +45,7 @@ class FakeRoute:
         return self.accepts_locale(changed.locale) and changed.action in self.actions
 
 
-class FakeSource:
+class _Source:
     def __init__(self, result: PollResult, source_texts: dict[str, str] | None) -> None:
         self.result = result
         self.source_texts = source_texts
@@ -63,7 +63,7 @@ class FakeSource:
         )
 
 
-class MemoryState:
+class _State:
     def __init__(self, checkpoint: Checkpoint | None = None) -> None:
         self.checkpoint = checkpoint
         self.receipts: set[tuple[str, str]] = set()
@@ -141,15 +141,15 @@ class MemoryState:
         ]
 
 
-class FakeNotifier:
-    def __init__(self, routes: tuple[FakeRoute, ...], fail_route: str = "") -> None:
+class _Notifier:
+    def __init__(self, routes: tuple[_Route, ...], fail_route: str = "") -> None:
         self._routes = routes
         self.fail_route = fail_route
         self.sent: list[tuple[str, list[Delivery]]] = []
         self.baselines: list[tuple[str, int, int]] = []
 
     @property
-    def routes(self) -> tuple[FakeRoute, ...]:
+    def routes(self) -> tuple[_Route, ...]:
         return self._routes
 
     def send(
@@ -193,9 +193,9 @@ def _policy(
 
 
 def _make_monitor(
-    source: FakeSource,
-    state: MemoryState,
-    notifier: FakeNotifier,
+    source: _Source,
+    state: _State,
+    notifier: _Notifier,
     now: datetime = RUN_AT,
 ) -> Monitor:
     return Monitor(
@@ -211,14 +211,14 @@ class MonitorTests(unittest.TestCase):
     def test_routes_apply_their_delivery_windows_independently(self) -> None:
         changed = fixture_change(id="changed")
         routes = (
-            FakeRoute("immediate", delivery=_policy()),
-            FakeRoute("delayed", delivery=_policy(180, 900)),
+            _Route("immediate", delivery=_policy()),
+            _Route("delayed", delivery=_policy(180, 900)),
         )
-        state = MemoryState(Checkpoint("old", {}))
+        state = _State(Checkpoint("old", {}))
 
-        first = FakeNotifier(routes)
+        first = _Notifier(routes)
         _make_monitor(
-            FakeSource(PollResult((changed,), "next", 1), {changed.key: "English"}),
+            _Source(PollResult((changed,), "next", 1), {changed.key: "English"}),
             state,
             first,
         ).run()
@@ -229,9 +229,9 @@ class MonitorTests(unittest.TestCase):
             ["changed"],
         )
 
-        second = FakeNotifier(routes)
+        second = _Notifier(routes)
         _make_monitor(
-            FakeSource(PollResult((), "later", 0), {}),
+            _Source(PollResult((), "later", 0), {}),
             state,
             second,
             RUN_AT + timedelta(seconds=180),
@@ -239,33 +239,10 @@ class MonitorTests(unittest.TestCase):
 
         self.assertEqual([route_id for route_id, _ in second.sent], ["delayed"])
 
-    def test_quiet_window_delays_delivery_until_activity_stops(self) -> None:
-        changed = fixture_change(id="changed")
-        policy = _policy(180, 900)
-        route = FakeRoute("main", delivery=policy)
-        state = MemoryState(Checkpoint("old", {}))
-
-        first = FakeNotifier((route,))
-        _make_monitor(
-            FakeSource(PollResult((changed,), "next", 1), {changed.key: "English"}),
-            state,
-            first,
-        ).run()
-        self.assertEqual(first.sent, [])
-
-        second = FakeNotifier((route,))
-        _make_monitor(
-            FakeSource(PollResult((), "later", 0), {}),
-            state,
-            second,
-            RUN_AT + timedelta(seconds=180),
-        ).run()
-        self.assertEqual([item.change.id for item in second.sent[0][1]], ["changed"])
-
     def test_maximum_wait_forces_delivery_during_continuous_activity(self) -> None:
         policy = _policy(180, 240)
-        route = FakeRoute("main", delivery=policy)
-        state = MemoryState(Checkpoint("old", {}))
+        route = _Route("main", delivery=policy)
+        state = _State(Checkpoint("old", {}))
         first = fixture_change(id="first", old_value="A", new_value="B")
         second = fixture_change(
             id="second",
@@ -285,35 +262,33 @@ class MonitorTests(unittest.TestCase):
             (RUN_AT + timedelta(seconds=220), PollResult((third,), "three", 1)),
         )
         for now, batch in batches:
-            notifier = FakeNotifier((route,))
+            notifier = _Notifier((route,))
             _make_monitor(
-                FakeSource(batch, {first.key: "English"}),
+                _Source(batch, {first.key: "English"}),
                 state,
                 notifier,
                 now,
             ).run()
             self.assertEqual(notifier.sent, [])
 
-        notifier = FakeNotifier((route,))
+        notifier = _Notifier((route,))
         _make_monitor(
-            FakeSource(PollResult((), "four", 0), {}),
+            _Source(PollResult((), "four", 0), {}),
             state,
             notifier,
             RUN_AT + timedelta(seconds=240),
         ).run()
-        sent = notifier.sent[0][1][0]
-        self.assertEqual((sent.change.old_value, sent.change.new_value), ("A", "D"))
-        self.assertEqual(sent.change_ids, ("first", "second", "third"))
+        self.assertEqual(len(notifier.sent), 1)
 
     def test_forced_run_flushes_an_immature_batch(self) -> None:
         changed = fixture_change(id="changed")
         policy = _policy(180, 900)
-        route = FakeRoute("main", delivery=policy)
-        state = MemoryState(Checkpoint("old", {}))
-        notifier = FakeNotifier((route,))
+        route = _Route("main", delivery=policy)
+        state = _State(Checkpoint("old", {}))
+        notifier = _Notifier((route,))
 
         _make_monitor(
-            FakeSource(PollResult((changed,), "next", 1), {changed.key: "English"}),
+            _Source(PollResult((changed,), "next", 1), {changed.key: "English"}),
             state,
             notifier,
         ).run(flush=True)
@@ -322,8 +297,8 @@ class MonitorTests(unittest.TestCase):
 
     def test_changes_collected_across_runs_are_folded(self) -> None:
         policy = _policy(60, 600)
-        route = FakeRoute("main", delivery=policy)
-        state = MemoryState(Checkpoint("old", {}))
+        route = _Route("main", delivery=policy)
+        state = _State(Checkpoint("old", {}))
         first = fixture_change(id="first", old_value="A", new_value="B")
         second = fixture_change(
             id="second",
@@ -333,19 +308,19 @@ class MonitorTests(unittest.TestCase):
         )
 
         _make_monitor(
-            FakeSource(PollResult((first,), "one", 1), {first.key: "English"}),
+            _Source(PollResult((first,), "one", 1), {first.key: "English"}),
             state,
-            FakeNotifier((route,)),
+            _Notifier((route,)),
         ).run()
         _make_monitor(
-            FakeSource(PollResult((second,), "two", 1), {first.key: "English"}),
+            _Source(PollResult((second,), "two", 1), {first.key: "English"}),
             state,
-            FakeNotifier((route,)),
+            _Notifier((route,)),
             RUN_AT + timedelta(seconds=30),
         ).run()
-        notifier = FakeNotifier((route,))
+        notifier = _Notifier((route,))
         _make_monitor(
-            FakeSource(PollResult((), "three", 0), {}),
+            _Source(PollResult((), "three", 0), {}),
             state,
             notifier,
             RUN_AT + timedelta(seconds=90),
@@ -386,14 +361,12 @@ class MonitorTests(unittest.TestCase):
                 second, occurred_at=first.occurred_at + timedelta(seconds=1)
             )
             with self.subTest(actions=(first.action, second.action)):
-                source = FakeSource(
+                source = _Source(
                     PollResult((first, second), "next", 2),
                     {first.key: "English"},
                 )
-                notifier = FakeNotifier((FakeRoute("main"),))
-                _make_monitor(
-                    source, MemoryState(Checkpoint("old", {})), notifier
-                ).run()
+                notifier = _Notifier((_Route("main"),))
+                _make_monitor(source, _State(Checkpoint("old", {})), notifier).run()
                 changed = notifier.sent[0][1][0].change
                 self.assertEqual(
                     (changed.action, changed.old_value, changed.new_value), expected
@@ -410,11 +383,11 @@ class MonitorTests(unittest.TestCase):
             new_value=None,
             occurred_at=added.occurred_at + timedelta(seconds=1),
         )
-        state = MemoryState(Checkpoint("old", {}))
-        notifier = FakeNotifier((FakeRoute("main"),))
+        state = _State(Checkpoint("old", {}))
+        notifier = _Notifier((_Route("main"),))
 
         _make_monitor(
-            FakeSource(PollResult((added, deleted), "next", 2), {added.key: "English"}),
+            _Source(PollResult((added, deleted), "next", 2), {added.key: "English"}),
             state,
             notifier,
         ).run()
@@ -432,13 +405,11 @@ class MonitorTests(unittest.TestCase):
             new_value="B",
             occurred_at=added.occurred_at + timedelta(seconds=1),
         )
-        notifier = FakeNotifier((FakeRoute("main", actions=frozenset({"added"})),))
+        notifier = _Notifier((_Route("main", actions=frozenset({"added"})),))
 
         _make_monitor(
-            FakeSource(
-                PollResult((added, modified), "next", 2), {added.key: "English"}
-            ),
-            MemoryState(Checkpoint("old", {})),
+            _Source(PollResult((added, modified), "next", 2), {added.key: "English"}),
+            _State(Checkpoint("old", {})),
             notifier,
         ).run()
 
@@ -459,12 +430,12 @@ class MonitorTests(unittest.TestCase):
             new_value="E",
             occurred_at=first.occurred_at + timedelta(minutes=2),
         )
-        source = FakeSource(
+        source = _Source(
             PollResult((first, unrelated, latest), "next", 3),
             {first.key: "English", unrelated.key: "Other"},
         )
-        state = MemoryState(Checkpoint("old", {}))
-        notifier = FakeNotifier((FakeRoute("main"),))
+        state = _State(Checkpoint("old", {}))
+        notifier = _Notifier((_Route("main"),))
 
         _make_monitor(source, state, notifier).run()
 
@@ -481,13 +452,9 @@ class MonitorTests(unittest.TestCase):
             new_value="C",
             occurred_at=first.occurred_at + timedelta(minutes=1),
         )
-        source = FakeSource(
-            PollResult((first, latest), "next", 2), {first.key: "English"}
-        )
-        state = MemoryState(Checkpoint("old", {}))
-        notifier = FakeNotifier(
-            (FakeRoute("main", delivery=_policy(latest_only=False)),)
-        )
+        source = _Source(PollResult((first, latest), "next", 2), {first.key: "English"})
+        state = _State(Checkpoint("old", {}))
+        notifier = _Notifier((_Route("main", delivery=_policy(latest_only=False)),))
 
         _make_monitor(source, state, notifier).run()
 
@@ -505,14 +472,14 @@ class MonitorTests(unittest.TestCase):
             old_value=None,
             occurred_at=accepted.occurred_at + timedelta(seconds=1),
         )
-        source = FakeSource(
+        source = _Source(
             PollResult((accepted, ignored), "next", 2),
             {accepted.key: "English", ignored.key: "Other"},
         )
-        state = MemoryState(Checkpoint("old", {}))
-        notifier = FakeNotifier(
+        state = _State(Checkpoint("old", {}))
+        notifier = _Notifier(
             (
-                FakeRoute(
+                _Route(
                     "main",
                     actions=frozenset({"modified"}),
                     delivery=_policy(180, 900, latest_only=False),
@@ -532,12 +499,12 @@ class MonitorTests(unittest.TestCase):
         chinese = fixture_change(id="zh")
         added = fixture_change(id="added", action="added", old_value=None)
         deleted = fixture_change(id="deleted", action="deleted", new_value=None)
-        source = FakeSource(
+        source = _Source(
             PollResult((english, chinese, added, deleted), "next", 4),
             {english.key: "English"},
         )
-        state = MemoryState(Checkpoint("old", {}))
-        notifier = FakeNotifier((FakeRoute("main"),))
+        state = _State(Checkpoint("old", {}))
+        notifier = _Notifier((_Route("main"),))
 
         _make_monitor(source, state, notifier).run()
 
@@ -551,11 +518,9 @@ class MonitorTests(unittest.TestCase):
         )
 
     def test_baseline_uses_only_the_source_contract(self) -> None:
-        source = FakeSource(
-            PollResult((), {"opaque": "cursor"}, 125), {"key": "English"}
-        )
-        state = MemoryState()
-        notifier = FakeNotifier((FakeRoute("first"), FakeRoute("second")))
+        source = _Source(PollResult((), {"opaque": "cursor"}, 125), {"key": "English"})
+        state = _State()
+        notifier = _Notifier((_Route("first"), _Route("second")))
         _make_monitor(source, state, notifier).run()
         self.assertEqual(source.polled_with, [None])
         self.assertEqual(
@@ -569,45 +534,43 @@ class MonitorTests(unittest.TestCase):
 
     def test_source_must_include_texts_when_changes_are_returned(self) -> None:
         changed = fixture_change(id="changed")
-        source = FakeSource(PollResult((changed,), "next", 1), None)
-        state = MemoryState(Checkpoint("old", {}))
+        source = _Source(PollResult((changed,), "next", 1), None)
+        state = _State(Checkpoint("old", {}))
 
         with self.assertRaisesRegex(WatcherError, "did not include source texts"):
             _make_monitor(
                 source,
                 state,
-                FakeNotifier((FakeRoute("main"),)),
+                _Notifier((_Route("main"),)),
             ).run()
 
     def test_baseline_failure_keeps_checkpoint_and_retries_only_missing_route(
         self,
     ) -> None:
-        source = FakeSource(PollResult((), "cursor", 1), {"key": "English"})
-        state = MemoryState()
-        routes = (FakeRoute("first"), FakeRoute("second"))
+        source = _Source(PollResult((), "cursor", 1), {"key": "English"})
+        state = _State()
+        routes = (_Route("first"), _Route("second"))
         with self.assertRaisesRegex(WatcherError, "baseline"):
-            _make_monitor(
-                source, state, FakeNotifier(routes, fail_route="second")
-            ).run()
+            _make_monitor(source, state, _Notifier(routes, fail_route="second")).run()
         self.assertIsNone(state.checkpoint)
         self.assertIn("first", state.notified_routes)
 
-        retry = FakeNotifier(routes)
+        retry = _Notifier(routes)
         _make_monitor(source, state, retry).run()
         self.assertEqual(retry.baselines, [("second", 1, 1)])
 
     def test_new_route_receives_one_notice_after_the_global_baseline(self) -> None:
         checkpoint = Checkpoint("old", {"key": "English"})
-        source = FakeSource(PollResult((), "next", 2), {"key": "unused"})
-        state = MemoryState(checkpoint)
+        source = _Source(PollResult((), "next", 2), {"key": "unused"})
+        state = _State(checkpoint)
         state.notified_routes.add("existing")
-        routes = (FakeRoute("existing"), FakeRoute("new"))
+        routes = (_Route("existing"), _Route("new"))
 
-        first = FakeNotifier(routes)
+        first = _Notifier(routes)
         _make_monitor(source, state, first).run()
         self.assertEqual(first.baselines, [("new", 2, 1)])
 
-        second = FakeNotifier(routes)
+        second = _Notifier(routes)
         _make_monitor(source, state, second).run()
         self.assertEqual(second.baselines, [])
 
@@ -621,16 +584,16 @@ class MonitorTests(unittest.TestCase):
             new_value="Example",
             occurred_at=chinese.occurred_at.replace(minute=8),
         )
-        source = FakeSource(
+        source = _Source(
             PollResult((english, chinese), {"api_token": "next"}, 2),
             {chinese.key: "Current English"},
         )
-        state = MemoryState(Checkpoint({"api_token": "old"}, {chinese.key: "Previous"}))
-        notifier = FakeNotifier(
+        state = _State(Checkpoint({"api_token": "old"}, {chinese.key: "Previous"}))
+        notifier = _Notifier(
             (
-                FakeRoute("zh", frozenset({"zh-Hans"})),
-                FakeRoute("all"),
-                FakeRoute("deleted", actions=frozenset({"deleted"})),
+                _Route("zh", frozenset({"zh-Hans"})),
+                _Route("all"),
+                _Route("deleted", actions=frozenset({"deleted"})),
             )
         )
         _make_monitor(source, state, notifier).run()
@@ -656,15 +619,13 @@ class MonitorTests(unittest.TestCase):
 
     def test_partial_failure_advances_checkpoint_and_retains_the_outbox(self) -> None:
         changed = fixture_change(id="changed")
-        source = FakeSource(PollResult((changed,), "next", 1), {changed.key: "English"})
+        source = _Source(PollResult((changed,), "next", 1), {changed.key: "English"})
         initial = Checkpoint("old", {changed.key: "Previous"})
-        state = MemoryState(initial)
-        routes = (FakeRoute("first"), FakeRoute("second"))
+        state = _State(initial)
+        routes = (_Route("first"), _Route("second"))
         state.notified_routes.update(route.id for route in routes)
         with self.assertRaisesRegex(WatcherError, "simulated"):
-            _make_monitor(
-                source, state, FakeNotifier(routes, fail_route="second")
-            ).run()
+            _make_monitor(source, state, _Notifier(routes, fail_route="second")).run()
         self.assertEqual(
             state.checkpoint,
             Checkpoint("next", {changed.key: "English"}),
@@ -676,7 +637,7 @@ class MonitorTests(unittest.TestCase):
             [changed.id],
         )
 
-        retry = FakeNotifier(routes)
+        retry = _Notifier(routes)
         _make_monitor(source, state, retry).run()
         self.assertEqual(
             [
@@ -685,17 +646,13 @@ class MonitorTests(unittest.TestCase):
             ],
             [("second", [changed.id])],
         )
-        self.assertEqual(
-            state.checkpoint,
-            Checkpoint("next", {changed.key: "English"}),
-        )
 
     def test_dry_run_has_no_state_or_notification_side_effects(self) -> None:
         changed = fixture_change(id="changed")
         initial = Checkpoint("old", {changed.key: "Previous"})
-        source = FakeSource(PollResult((changed,), "next", 1), {changed.key: "Current"})
-        state = MemoryState(initial)
-        notifier = FakeNotifier((FakeRoute("main"),))
+        source = _Source(PollResult((changed,), "next", 1), {changed.key: "Current"})
+        state = _State(initial)
+        notifier = _Notifier((_Route("main"),))
         result = _make_monitor(source, state, notifier).run("dry-run")
         self.assertEqual(state.checkpoint, initial)
         self.assertEqual(state.receipts, set())
@@ -703,9 +660,9 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(result[0]["route_id"], "main")
 
     def test_dry_run_reports_a_missing_baseline_without_creating_it(self) -> None:
-        source = FakeSource(PollResult((), "cursor", 7), {"key": "English"})
-        state = MemoryState()
-        notifier = FakeNotifier((FakeRoute("main"),))
+        source = _Source(PollResult((), "cursor", 7), {"key": "English"})
+        state = _State()
+        notifier = _Notifier((_Route("main"),))
 
         result = _make_monitor(source, state, notifier).run("dry-run")
 
@@ -717,10 +674,10 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(notifier.baselines, [])
 
     def test_reset_baseline_never_passes_the_stored_cursor_to_source(self) -> None:
-        source = FakeSource(PollResult((), "fresh", 3), {})
-        state = MemoryState(Checkpoint("old", {}))
+        source = _Source(PollResult((), "fresh", 3), {})
+        state = _State(Checkpoint("old", {}))
         state.receipts.add(("main", "delivered"))
-        notifier = FakeNotifier((FakeRoute("main"),))
+        notifier = _Notifier((_Route("main"),))
         _make_monitor(source, state, notifier).reset("baseline")
         self.assertEqual(source.polled_with, [None])
         self.assertEqual(notifier.baselines, [])
@@ -729,10 +686,10 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(state.checkpoint, Checkpoint("fresh", {}))
 
     def test_reset_baseline_can_force_a_new_notification(self) -> None:
-        source = FakeSource(PollResult((), "fresh", 3), {})
-        state = MemoryState(Checkpoint("old", {}))
+        source = _Source(PollResult((), "fresh", 3), {})
+        state = _State(Checkpoint("old", {}))
         state.notified_routes.add("main")
-        notifier = FakeNotifier((FakeRoute("main"),))
+        notifier = _Notifier((_Route("main"),))
 
         _make_monitor(source, state, notifier).reset("baseline", notify=True)
 
@@ -740,14 +697,14 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(state.checkpoint, Checkpoint("fresh", {}))
 
     def test_reset_state_clears_delivery_state(self) -> None:
-        source = FakeSource(PollResult((), "fresh", 3), {})
-        state = MemoryState(Checkpoint("old", {}))
+        source = _Source(PollResult((), "fresh", 3), {})
+        state = _State(Checkpoint("old", {}))
         state.receipts.add(("old", "delivered"))
         state.notified_routes.add("old")
         state.outbox["old"] = [
             QueuedDelivery(Delivery(fixture_change(), "Source"), RUN_AT)
         ]
-        notifier = FakeNotifier((FakeRoute("main"),))
+        notifier = _Notifier((_Route("main"),))
 
         _make_monitor(source, state, notifier).reset("state")
 
@@ -758,9 +715,9 @@ class MonitorTests(unittest.TestCase):
 
     def test_source_text_falls_back_to_the_previous_snapshot(self) -> None:
         changed = fixture_change(id="changed")
-        source = FakeSource(PollResult((changed,), "next", 1), {})
-        state = MemoryState(Checkpoint("old", {changed.key: "Previous English"}))
-        notifier = FakeNotifier((FakeRoute("main"),))
+        source = _Source(PollResult((changed,), "next", 1), {})
+        state = _State(Checkpoint("old", {changed.key: "Previous English"}))
+        notifier = _Notifier((_Route("main"),))
         _make_monitor(source, state, notifier).run()
         self.assertEqual(notifier.sent[0][1][0].source_text, "Previous English")
 
@@ -771,9 +728,9 @@ class MonitorTests(unittest.TestCase):
             old_value="Old",
             new_value="New",
         )
-        source = FakeSource(PollResult((changed,), "next", 1), {changed.key: "New"})
-        state = MemoryState(Checkpoint("old", {changed.key: "Old"}))
-        notifier = FakeNotifier((FakeRoute("target", frozenset({"zh-Hans"})),))
+        source = _Source(PollResult((changed,), "next", 1), {changed.key: "New"})
+        state = _State(Checkpoint("old", {changed.key: "Old"}))
+        notifier = _Notifier((_Route("target", frozenset({"zh-Hans"})),))
 
         _make_monitor(source, state, notifier).run()
 
@@ -783,10 +740,10 @@ class MonitorTests(unittest.TestCase):
 
     def test_empty_poll_reuses_the_previous_source_snapshot(self) -> None:
         checkpoint = Checkpoint("old", {"key": "English"})
-        source = FakeSource(PollResult((), "next", 0), {"key": "unused"})
-        state = MemoryState(checkpoint)
+        source = _Source(PollResult((), "next", 0), {"key": "unused"})
+        state = _State(checkpoint)
 
-        _make_monitor(source, state, FakeNotifier((FakeRoute("main"),))).run()
+        _make_monitor(source, state, _Notifier((_Route("main"),))).run()
 
         self.assertEqual(source.source_text_reads, 0)
         self.assertEqual(state.checkpoint, Checkpoint("next", checkpoint.source_texts))

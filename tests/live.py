@@ -11,7 +11,7 @@ from noctalia_i18n_watcher.config import load_config
 from noctalia_i18n_watcher.discord import DiscordNotifier
 from noctalia_i18n_watcher.sources import PagedSource, build_source
 
-from .factories import discord_options, recorded_delivery, webhook
+from .factories import discord_options, discord_route, recorded_delivery
 from .fixtures import CONFIG_PATH
 
 _WEBHOOK_URL = os.environ.get("NOCTALIA_TEST_WEBHOOK_URL", "")
@@ -55,7 +55,7 @@ class LiveSourceTests(unittest.TestCase):
 )
 class LiveDiscordTests(unittest.TestCase):
     def test_discord_accepts_a_rendered_notification(self) -> None:
-        route = webhook(url=_WEBHOOK_URL)
+        route = discord_route(url=_WEBHOOK_URL)
         notifier = DiscordNotifier(
             (route,),
             discord_options(),

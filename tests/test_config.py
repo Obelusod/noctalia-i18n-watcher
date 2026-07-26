@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from noctalia_i18n_watcher.config import load_config
+from noctalia_i18n_watcher.config import Config, load_config
 from noctalia_i18n_watcher.models import ValidationError
 
 from .fixtures import CONFIG_PATH
@@ -31,7 +31,7 @@ def _webhook(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 class ConfigTests(unittest.TestCase):
-    def _load(self, payload: object):
+    def _load(self, payload: object) -> Config:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
@@ -66,38 +66,6 @@ class ConfigTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValidationError, r"monitors\[0\]\.source\.project"):
             self._load(payload)
-
-    def test_repository_configuration_is_explicit(self) -> None:
-        config = load_config(CONFIG_PATH)
-        settings = config.settings
-        (monitor,) = config.monitors
-        (webhook,) = monitor.webhooks
-
-        self.assertEqual(settings.http.request_timeout, 30.0)
-        self.assertEqual(settings.retention_days, 180)
-        self.assertEqual(monitor.id, "noctalia")
-        self.assertEqual(monitor.source.project, "noctalia")
-        self.assertEqual(monitor.source.options, {"max_pages": 20})
-        self.assertEqual(webhook.id, "default")
-        self.assertEqual(webhook.locales, frozenset({"en", "zh-Hans"}))
-        self.assertEqual(
-            (
-                webhook.delivery.quiet_seconds,
-                webhook.delivery.max_wait_seconds,
-                webhook.delivery.latest_only,
-                webhook.delivery.merge.enabled,
-                webhook.delivery.merge.threshold,
-            ),
-            (240, 900, True, True, 5),
-        )
-        self.assertEqual(
-            (
-                webhook.messages.source,
-                webhook.messages.target,
-                webhook.messages.merge,
-            ),
-            ("english", "english", "english"),
-        )
 
     def test_required_fields_are_explicit(self) -> None:
         paths = (

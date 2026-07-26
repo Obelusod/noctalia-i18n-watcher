@@ -2,42 +2,63 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
 from noctalia_i18n_watcher.config import (
     Config,
+    HTTPSettings,
+    MessageSelection,
     MonitorConfig,
     Settings,
+    SourceSettings,
     Webhook,
-    load_config,
 )
 from noctalia_i18n_watcher.discord import DiscordOptions, DiscordRoute
-from noctalia_i18n_watcher.messages import load_merge, load_message
-from noctalia_i18n_watcher.models import Delivery, DeliveryPolicy, MergePolicy
+from noctalia_i18n_watcher.messages import Embed, MergePage, MessageValues
+from noctalia_i18n_watcher.models import (
+    ACTIONS,
+    Action,
+    Delivery,
+    DeliveryPolicy,
+    MergePolicy,
+)
 
 from .fixtures import (
-    CONFIG_PATH,
     FIXTURE_SOURCE,
-    MERGE_MESSAGE_DIR,
     RECORDED_SOURCE,
-    SOURCE_MESSAGE_DIR,
-    TARGET_MESSAGE_DIR,
     fixture_change,
     recorded_change,
 )
 
-_CONFIG = load_config(CONFIG_PATH)
-_MONITOR = _CONFIG.monitors[0]
+_HTTP = HTTPSettings(proxy_url="", request_timeout=30.0)
+_MESSAGES = MessageSelection(source="english", target="english", merge="english")
+
+
+class _Message:
+    def render(self, action: Action, values: Mapping[str, object]) -> Embed:
+        return {"description": f"{values['locale']}:{values['key']}:{action}"}
+
+
+class _MergeMessage:
+    def render(self, values: Sequence[MessageValues], /) -> tuple[MergePage, ...]:
+        description = "\n".join(value["key"] for value in values)
+        return (MergePage(len(values), {"description": description}),)
 
 
 def merge_policy(**overrides: Any) -> MergePolicy:
-    base = _MONITOR.webhooks[0].delivery.merge
+    base = MergePolicy(enabled=True, threshold=5)
     return replace(base, **overrides)
 
 
 def delivery_policy(**overrides: Any) -> DeliveryPolicy:
-    base = _MONITOR.webhooks[0].delivery
+    base = DeliveryPolicy(
+        quiet_seconds=240,
+        max_wait_seconds=900,
+        latest_only=True,
+        merge=merge_policy(),
+    )
     return replace(base, **overrides)
 
 
@@ -51,20 +72,20 @@ def recorded_delivery(**overrides: Any) -> Delivery:
     return Delivery.from_change(changed, {changed.key: RECORDED_SOURCE})
 
 
-def webhook(**overrides: Any) -> DiscordRoute:
+def discord_route(**overrides: Any) -> DiscordRoute:
     selected = webhook_config()
     base = DiscordRoute(
         id=selected.id,
-        monitor_id=_MONITOR.id,
-        project=_MONITOR.source.project,
+        monitor_id="noctalia",
+        project="noctalia",
         url=selected.url,
         username=selected.username,
         avatar_url=selected.avatar_url,
         locales=selected.locales,
         actions=selected.actions,
-        source_message=load_message(selected.messages.source, SOURCE_MESSAGE_DIR),
-        target_message=load_message(selected.messages.target, TARGET_MESSAGE_DIR),
-        merge_message=load_merge(selected.messages.merge, MERGE_MESSAGE_DIR),
+        source_message=_Message(),
+        target_message=_Message(),
+        merge_message=_MergeMessage(),
         delivery=selected.delivery,
         notify_baseline=selected.notify_baseline,
     )
@@ -72,17 +93,35 @@ def webhook(**overrides: Any) -> DiscordRoute:
 
 
 def webhook_config(**overrides: Any) -> Webhook:
-    base = _MONITOR.webhooks[0]
+    base = Webhook(
+        id="default",
+        url="https://discord.com/api/webhooks/123/token",
+        username="",
+        avatar_url="",
+        locales=frozenset({"en", "zh-Hans"}),
+        actions=frozenset(ACTIONS),
+        messages=_MESSAGES,
+        delivery=delivery_policy(),
+        notify_baseline=True,
+    )
     return replace(base, **overrides)
 
 
 def monitor_config(*webhooks: Webhook, **overrides: Any) -> MonitorConfig:
-    base = replace(_MONITOR, webhooks=webhooks or _MONITOR.webhooks)
+    base = MonitorConfig(
+        id="noctalia",
+        source=SourceSettings(
+            project="noctalia",
+            adapter="web",
+            options={"max_pages": 20},
+        ),
+        webhooks=webhooks or (webhook_config(),),
+    )
     return replace(base, **overrides)
 
 
 def settings(**overrides: Any) -> Settings:
-    base = _CONFIG.settings
+    base = Settings(http=_HTTP, retention_days=180, log_level="INFO")
     return replace(base, **overrides)
 
 
@@ -98,5 +137,5 @@ def discord_options(**overrides: Any) -> DiscordOptions:
 def app_config(*monitors: MonitorConfig, **setting_overrides: object) -> Config:
     return Config(
         settings=settings(**setting_overrides),
-        monitors=monitors or (_MONITOR,),
+        monitors=monitors or (monitor_config(),),
     )

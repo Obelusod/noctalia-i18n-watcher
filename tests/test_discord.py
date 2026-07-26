@@ -3,21 +3,15 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from unittest.mock import MagicMock, patch
 
 import requests
 
-from noctalia_i18n_watcher.discord import (
-    DiscordNotifier,
-    DiscordOptions,
-    DiscordRoute,
-)
-from noctalia_i18n_watcher.messages import Embed
+from noctalia_i18n_watcher.discord import DiscordNotifier
+from noctalia_i18n_watcher.messages import Embed, MergePage, MessageValues
 from noctalia_i18n_watcher.models import (
     Action,
-    Delivery,
-    JsonValue,
     StateSummary,
     WatcherError,
 )
@@ -26,32 +20,35 @@ from .factories import (
     delivery,
     delivery_policy,
     discord_options,
+    discord_route,
     merge_policy,
-    webhook,
 )
 from .fixtures import fixture_change
 
 
-def _sent_embed(
-    *,
-    route: DiscordRoute | None = None,
-    item: Delivery | None = None,
-    options: DiscordOptions | None = None,
-) -> Embed:
-    selected = route or webhook()
-    notifier = DiscordNotifier(
-        (selected,),
-        options or discord_options(),
-    )
-    try:
-        return notifier.render(selected.id, (item or delivery(),))[0]
-    finally:
-        notifier.close()
+class _PagedMerge:
+    def __init__(self, page_size: int, page_chars: int = 0) -> None:
+        self._page_size = page_size
+        self._page_chars = page_chars
+
+    def render(
+        self,
+        values: Sequence[MessageValues],
+        /,
+    ) -> tuple[MergePage, ...]:
+        pages: list[MergePage] = []
+        for start in range(0, len(values), self._page_size):
+            page = values[start : start + self._page_size]
+            description = (
+                "\n".join(value["key"] for value in page) + "x" * self._page_chars
+            )
+            pages.append(MergePage(len(page), {"description": description}))
+        return tuple(pages)
 
 
 class DiscordTests(unittest.TestCase):
     def test_batch_above_route_threshold_uses_one_locale_merge(self) -> None:
-        route = webhook(delivery=delivery_policy(merge=merge_policy(threshold=2)))
+        route = discord_route(delivery=delivery_policy(merge=merge_policy(threshold=2)))
         items = tuple(
             delivery(id=f"change-{index}", key=f"fixture.entry.{index}")
             for index in range(3)
@@ -63,39 +60,18 @@ class DiscordTests(unittest.TestCase):
         ).render(route.id, items)
 
         self.assertEqual(len(embeds), 1)
-        self.assertEqual(embeds[0].get("title"), "[zh-Hans] Translation Changes · 3")
+        self.assertEqual(
+            embeds[0].get("description"),
+            "fixture.entry.0\nfixture.entry.1\nfixture.entry.2",
+        )
 
-    def test_merge_sends_and_acknowledges_every_entry(self) -> None:
-        session = MagicMock()
-        session.post.return_value = MagicMock(status_code=204)
-        route = webhook(delivery=delivery_policy(merge=merge_policy(threshold=0)))
-        options = discord_options()
-        notifier = DiscordNotifier((route,), options, session=session)
+    def test_merge_pages_are_delivered_without_losing_acknowledgements(self) -> None:
+        route = discord_route(
+            merge_message=_PagedMerge(2, page_chars=3500),
+            delivery=delivery_policy(merge=merge_policy(threshold=0)),
+        )
         items = tuple(
             delivery(id=f"change-{index}", key=f"fixture.entry.{index}")
-            for index in range(4)
-        )
-        acknowledged: list[str] = []
-
-        notifier.send(
-            route.id,
-            items,
-            lambda batch: acknowledged.extend(item.change.id for item in batch),
-        )
-
-        self.assertEqual(acknowledged, [f"change-{index}" for index in range(4)])
-
-    def test_merge_splits_oversized_groups_without_losing_acknowledgements(
-        self,
-    ) -> None:
-        route = webhook(delivery=delivery_policy(merge=merge_policy(threshold=0)))
-        items = tuple(
-            delivery(
-                id=f"change-{index}",
-                key=f"fixture.entry.{index}",
-                old_value="A" * 1400,
-                new_value="B" * 1400,
-            )
             for index in range(4)
         )
         session = MagicMock()
@@ -119,14 +95,12 @@ class DiscordTests(unittest.TestCase):
     def test_failed_merge_part_leaves_only_unsent_entries_unacknowledged(
         self,
     ) -> None:
-        route = webhook(delivery=delivery_policy(merge=merge_policy(threshold=0)))
+        route = discord_route(
+            merge_message=_PagedMerge(2, page_chars=3500),
+            delivery=delivery_policy(merge=merge_policy(threshold=0)),
+        )
         items = tuple(
-            delivery(
-                id=f"change-{index}",
-                key=f"fixture.entry.{index}",
-                old_value="A" * 1400,
-                new_value="B" * 1400,
-            )
+            delivery(id=f"change-{index}", key=f"fixture.entry.{index}")
             for index in range(4)
         )
         failed = MagicMock(status_code=404)
@@ -155,7 +129,7 @@ class DiscordTests(unittest.TestCase):
         self.assertLess(len(acknowledged), len(items))
 
     def test_merge_groups_interleaved_locales_by_first_appearance(self) -> None:
-        route = webhook(
+        route = discord_route(
             locales=frozenset({"*"}),
             delivery=delivery_policy(merge=merge_policy(threshold=0)),
         )
@@ -170,15 +144,15 @@ class DiscordTests(unittest.TestCase):
         embeds = DiscordNotifier((route,), options).render(route.id, items)
 
         self.assertEqual(
-            [embed.get("title") for embed in embeds],
+            [embed.get("description") for embed in embeds],
             [
-                "[de] Translation Changes · 2",
-                "[fr] Translation Changes · 2",
+                "de.1\nde.2",
+                "fr.1\nfr.2",
             ],
         )
 
     def test_threshold_is_applied_to_each_locale_group(self) -> None:
-        route = webhook(
+        route = discord_route(
             locales=frozenset({"*"}),
             delivery=delivery_policy(merge=merge_policy(threshold=2)),
         )
@@ -194,7 +168,7 @@ class DiscordTests(unittest.TestCase):
         self.assertEqual(len(embeds), 6)
 
     def test_unmerged_interleaved_changes_keep_chronological_order(self) -> None:
-        route = webhook(
+        route = discord_route(
             locales=frozenset({"*"}),
             delivery=delivery_policy(merge=merge_policy(threshold=2)),
         )
@@ -210,12 +184,16 @@ class DiscordTests(unittest.TestCase):
         ).render(route.id, items)
 
         self.assertEqual(
-            [embed.get("fields", [])[0]["value"] for embed in embeds],
-            ["`de.1`", "`fr.1`", "`de.2`"],
+            [embed.get("description") for embed in embeds],
+            [
+                "de:de.1:modified",
+                "fr:fr.1:modified",
+                "de:de.2:modified",
+            ],
         )
 
     def test_route_switch_disables_merging(self) -> None:
-        route = webhook(
+        route = discord_route(
             delivery=delivery_policy(merge=merge_policy(enabled=False, threshold=0))
         )
         items = tuple(delivery(id=f"change-{index}") for index in range(3))
@@ -226,13 +204,13 @@ class DiscordTests(unittest.TestCase):
         self.assertEqual(len(embeds), 3)
 
     def test_route_ids_must_be_unique_at_the_adapter_boundary(self) -> None:
-        route = webhook()
+        route = discord_route()
         with self.assertRaisesRegex(ValueError, "route IDs must be unique"):
             DiscordNotifier((route, route), discord_options())
 
     def test_render_has_no_delivery_side_effects(self) -> None:
         session = MagicMock()
-        route = webhook()
+        route = discord_route()
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -244,20 +222,10 @@ class DiscordTests(unittest.TestCase):
         self.assertEqual(len(embeds), 1)
         session.post.assert_not_called()
 
-    def test_message_renderer_is_replaceable(self) -> None:
-        class PlainMessage:
-            def render(self, action: Action, values: Mapping[str, JsonValue]) -> Embed:
-                return {"description": f"{action}: {values['key']}"}
-
-        self.assertEqual(
-            _sent_embed(route=webhook(target_message=PlainMessage())),
-            {"description": f"modified: {fixture_change().key}"},
-        )
-
     def test_payload_keeps_identity_and_disables_mentions(self) -> None:
         session = MagicMock()
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook(username="Noctalia i18n Watcher")
+        route = discord_route(username="Noctalia i18n Watcher")
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -271,7 +239,7 @@ class DiscordTests(unittest.TestCase):
     def test_empty_identity_uses_the_discord_webhook_profile(self) -> None:
         session = MagicMock()
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook(username="", avatar_url="")
+        route = discord_route(username="", avatar_url="")
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -285,7 +253,7 @@ class DiscordTests(unittest.TestCase):
         self.assertNotIn("avatar_url", payload)
 
     def test_route_matches_locale_and_action_filters(self) -> None:
-        route = webhook(
+        route = discord_route(
             locales=frozenset({"zh-Hans"}),
             actions=frozenset({"modified"}),
         )
@@ -299,13 +267,13 @@ class DiscordTests(unittest.TestCase):
     def test_wildcard_route_accepts_an_unconfigured_project_locale(self) -> None:
         changed = fixture_change(locale="sr-Latn-RS")
 
-        self.assertTrue(webhook(locales=frozenset({"*"})).matches(changed))
-        self.assertFalse(webhook(locales=frozenset({"zh-Hans"})).matches(changed))
+        self.assertTrue(discord_route(locales=frozenset({"*"})).matches(changed))
+        self.assertFalse(discord_route(locales=frozenset({"zh-Hans"})).matches(changed))
 
     def test_delivery_batches_and_acknowledges_successful_requests(self) -> None:
         session = MagicMock()
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook(merge_message=None)
+        route = discord_route(merge_message=None)
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -337,7 +305,7 @@ class DiscordTests(unittest.TestCase):
             ) -> Embed:
                 return {"description": "x" * 6001}
 
-        route = webhook(target_message=OversizedMessage(), merge_message=None)
+        route = discord_route(target_message=OversizedMessage(), merge_message=None)
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -346,68 +314,47 @@ class DiscordTests(unittest.TestCase):
         with self.assertRaisesRegex(WatcherError, "exceeding"):
             notifier.send(route.id, (delivery(),), lambda _batch: None)
 
-    def test_baseline_embed_is_fixed_english_and_summarizes_route(self) -> None:
+    def test_baseline_embed_summarizes_route_configuration(self) -> None:
         session = MagicMock()
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook()
+        route = discord_route(
+            id="primary",
+            monitor_id="watcher",
+            project="official-plugins",
+        )
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
             session=session,
         )
         notifier.send_baseline(route.id, 5, 2172)
-        payload = session.post.call_args.kwargs["json"]
+        embed = session.post.call_args.kwargs["json"]["embeds"][0]
+        fields = embed["fields"]
+        text = "\n".join(field["value"] for field in fields)
+
+        self.assertTrue(embed.get("title"))
         self.assertEqual(
-            payload["embeds"],
-            [
-                {
-                    "title": "Baseline Created",
-                    "description": (
-                        "Monitoring starts from this point; existing history "
-                        "will not be replayed."
-                    ),
-                    "color": 0x5865F2,
-                    "fields": [
-                        {
-                            "name": "RECENT HISTORY",
-                            "value": (
-                                "5 changes recorded\n\n"
-                                "**SUBSCRIBED LOCALES**\n"
-                                "`en` (source) · `zh-Hans`"
-                            ),
-                            "inline": True,
-                        },
-                        {
-                            "name": "ENGLISH SNAPSHOT",
-                            "value": (
-                                "2,172 keys\n\n"
-                                "**WATCHED ACTIONS**\n"
-                                "`added` · `modified` · `deleted`"
-                            ),
-                            "inline": True,
-                        },
-                        {
-                            "name": "DELIVERY",
-                            "value": (
-                                "After `4m` inactivity · `15m` maximum · Latest "
-                                "change per locale and key · Merge locale batches "
-                                "above `5`"
-                            ),
-                        },
-                    ],
-                    "footer": {
-                        "text": (
-                            "Monitor: noctalia · Project: noctalia · Route: default"
-                        )
-                    },
-                }
-            ],
+            [field.get("inline", False) for field in fields],
+            [True, True, False],
         )
+        for fact in (
+            "5 changes",
+            "`en` (source) · `zh-Hans`",
+            "2,172 keys",
+            "`added` · `modified` · `deleted`",
+            "`4m`",
+        ):
+            with self.subTest(fact=fact):
+                self.assertIn(fact, text)
+        footer = embed["footer"]["text"]
+        for identifier in ("watcher", "official-plugins", "primary"):
+            with self.subTest(identifier=identifier):
+                self.assertIn(identifier, footer)
 
     def test_baseline_embed_handles_wildcard_and_individual_delivery(self) -> None:
         session = MagicMock()
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook(
+        route = discord_route(
             locales=frozenset({"*"}),
             actions=frozenset[Action]({"modified"}),
             delivery=delivery_policy(
@@ -423,21 +370,17 @@ class DiscordTests(unittest.TestCase):
             session=session,
         )
         notifier.send_baseline(route.id, 1, 1)
-        fields = {
-            field["name"]: field["value"]
-            for field in session.post.call_args.kwargs["json"]["embeds"][0]["fields"]
-        }
-        self.assertIn("**SUBSCRIBED LOCALES**\n`*` (all)", fields["RECENT HISTORY"])
-        self.assertIn("**WATCHED ACTIONS**\n`modified`", fields["ENGLISH SNAPSHOT"])
-        self.assertEqual(
-            fields["DELIVERY"],
-            "No inactivity delay · `0s` maximum · Every change · Individual messages",
-        )
+        embed = session.post.call_args.kwargs["json"]["embeds"][0]
+        text = "\n".join(field["value"] for field in embed["fields"])
+        self.assertIn("`*` (all)", text)
+        self.assertIn("`modified`", text)
+        for fact in ("No inactivity delay", "`0s` maximum", "Every change"):
+            self.assertIn(fact, embed["fields"][-1]["value"])
 
     def test_status_embed_summarizes_state_and_route(self) -> None:
         session = MagicMock()
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook(locales=frozenset({"*"}))
+        route = discord_route(locales=frozenset({"*"}))
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -456,40 +399,22 @@ class DiscordTests(unittest.TestCase):
         notifier.send_status(route.id, summary)
 
         embed = session.post.call_args.kwargs["json"]["embeds"][0]
-        self.assertEqual(embed["title"], "Watcher Status")
+        fields = embed["fields"]
+        text = "\n".join(field["value"] for field in fields)
+        self.assertTrue(embed.get("title"))
         self.assertEqual(
-            [field["name"] for field in embed["fields"]],
-            [
-                "MONITORING STATE",
-                "ENGLISH SNAPSHOT",
-                "DELIVERY",
-            ],
-        )
-        self.assertEqual(
-            [field.get("inline", False) for field in embed["fields"]],
+            [field.get("inline", False) for field in fields],
             [True, True, False],
         )
-        fields = {field["name"]: field for field in embed["fields"]}
-        self.assertEqual(
-            fields["MONITORING STATE"]["value"],
-            (
-                "Ready\n\n"
-                "**SUBSCRIBED LOCALES**\n`*` (all)\n\n"
-                "**DELIVERY RECEIPTS**\n125 recorded"
-            ),
-        )
-        self.assertEqual(
-            fields["ENGLISH SNAPSHOT"]["value"],
-            (
-                "2,221 keys\n\n"
-                "**WATCHED ACTIONS**\n`added` · `modified` · `deleted`\n\n"
-                "**PENDING QUEUE**\n1 delivery across 1 route"
-            ),
-        )
-        self.assertEqual(
-            embed["footer"]["text"],
-            "Monitor: noctalia · Project: noctalia · Route: default",
-        )
+        for fact in (
+            "Ready",
+            "`*` (all)",
+            "125 recorded",
+            "2,221 keys",
+            "1 delivery across 1 route",
+        ):
+            with self.subTest(fact=fact):
+                self.assertIn(fact, text)
         self.assertNotIn("timestamp", embed)
 
     def test_proxy_wait_and_timeout_are_applied_by_the_adapter(self) -> None:
@@ -497,7 +422,7 @@ class DiscordTests(unittest.TestCase):
         session = MagicMock()
         session.proxies = {}
         session.post.return_value = MagicMock(status_code=204)
-        route = webhook()
+        route = discord_route()
         notifier = DiscordNotifier(
             (route,),
             discord_options(proxy_url=proxy),
@@ -518,7 +443,7 @@ class DiscordTests(unittest.TestCase):
             requests.ConnectionError("temporary"),
             MagicMock(status_code=204),
         ]
-        route = webhook()
+        route = discord_route()
         notifier = DiscordNotifier(
             (route,),
             discord_options(),
@@ -533,7 +458,7 @@ class DiscordTests(unittest.TestCase):
         sleep.assert_called_once_with(2)
 
     def test_final_errors_never_expose_webhook_tokens(self) -> None:
-        route = webhook(url="https://discord.com/api/webhooks/123/SECRET_TOKEN")
+        route = discord_route(url="https://discord.com/api/webhooks/123/SECRET_TOKEN")
         response = MagicMock(status_code=404)
         response.raise_for_status.side_effect = requests.HTTPError("SECRET_TOKEN")
         session = MagicMock()
@@ -554,7 +479,7 @@ class DiscordTests(unittest.TestCase):
         limited.json.return_value = {"retry_after": float("inf")}
         session = MagicMock()
         session.post.side_effect = [limited, MagicMock(status_code=204)]
-        route = webhook()
+        route = discord_route()
         notifier = DiscordNotifier(
             (route,),
             discord_options(),

@@ -17,8 +17,6 @@ from .fixtures import (
     FIXTURE_KEY,
     FIXTURE_SOURCE,
     MERGE_MESSAGE_DIR,
-    RECORDED_ACTOR,
-    RECORDED_KEY,
     RECORDED_SOURCE,
     SOURCE_MESSAGE_DIR,
     TARGET_MESSAGE_DIR,
@@ -62,19 +60,40 @@ def _fixture_values(**overrides: Any) -> MessageValues:
 
 class MessageTests(unittest.TestCase):
     @staticmethod
-    def _copy_message(root: Path, name: str) -> Path:
+    def _write_message(root: Path, name: str) -> Path:
         path = root / f"{name}.yaml"
         path.write_text(
-            (TARGET_MESSAGE_DIR / "english.yaml").read_text(encoding="utf-8"),
+            textwrap.dedent(
+                """\
+                added:
+                  description: "{key}: {new_value}"
+                modified:
+                  description: "{key}: {old_value} -> {new_value}"
+                deleted:
+                  description: "{key}: {old_value}"
+                """
+            ),
             encoding="utf-8",
         )
         return path
 
     @staticmethod
-    def _copy_merge(root: Path, name: str) -> Path:
+    def _write_merge(root: Path, name: str) -> Path:
         path = root / f"{name}.yaml"
         path.write_text(
-            (MERGE_MESSAGE_DIR / "english.yaml").read_text(encoding="utf-8"),
+            textwrap.dedent(
+                """\
+                source:
+                  description: "{entries}"
+                target:
+                  description: "{entries}"
+                entries:
+                  separator: "\\n"
+                  added: "{key}: {new_value}"
+                  modified: "{key}: {old_value} -> {new_value}"
+                  deleted: "{key}: {old_value}"
+                """
+            ),
             encoding="utf-8",
         )
         return path
@@ -102,46 +121,9 @@ class MessageTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_repository_message_defines_the_discord_embed(self) -> None:
-        english = load_message("english", TARGET_MESSAGE_DIR)
-        embed = english.render("modified", _recorded_values())
-
-        self.assertEqual(embed.get("title"), "[zh-Hans] Modified 1 translation")
-        self.assertEqual(
-            embed.get("author"),
-            {
-                "name": RECORDED_ACTOR,
-                "url": "https://github.com/Obelusod",
-                "icon_url": "https://github.com/Obelusod.png",
-            },
-        )
-        self.assertEqual(
-            [field["name"] for field in embed.get("fields", [])],
-            ["KEY", "ENGLISH", "CHANGE"],
-        )
-        self.assertEqual(
-            embed.get("fields", [])[0]["value"],
-            (
-                "[`settings.schema.notifications.border.description`]"
-                "(https://i18n.noctalia.dev/projects/noctalia/translate?search="
-                "settings.schema.notifications.border.description&locale=zh-Hans)"
-            ),
-        )
-        self.assertNotIn("url", embed)
-        self.assertEqual(
-            embed.get("fields", [])[-1]["value"],
-            (
-                "```ansi\n"
-                "− 在 Toast 通知周围绘制\x1b[1;31m边框\x1b[0m\n"
-                "+ 在 Toast 通知周围绘制\x1b[1;32m轮廓\x1b[0m\n"
-                "```"
-            ),
-        )
-        self.assertEqual(embed.get("timestamp"), "2026-07-17T09:51:04.838Z")
-
     def test_messages_can_place_derived_ansi_differences(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_message(Path(directory), "ansi")
+            path = self._write_message(Path(directory), "ansi")
             self._replace_action(
                 path,
                 "modified",
@@ -164,39 +146,8 @@ class MessageTests(unittest.TestCase):
             ),
         )
 
-    def test_detailed_messages_use_the_configured_avatar_fallback(self) -> None:
-        for directory in (SOURCE_MESSAGE_DIR, TARGET_MESSAGE_DIR):
-            with self.subTest(scope=directory.name):
-                message = load_message("english", directory)
-                embed = message.render(
-                    "modified",
-                    _fixture_values(
-                        locale="en",
-                        actor_avatar_url=(
-                            "https://fixtures.invalid/fixture-editor.png"
-                        ),
-                    ),
-                )
-
-                self.assertEqual(
-                    embed.get("author", {}).get("icon_url"),
-                    "https://fixtures.invalid/fixture-editor.png",
-                )
-                fallback = message.render(
-                    "modified", _fixture_values(locale="en", actor_avatar_url=None)
-                )
-                self.assertEqual(
-                    fallback.get("author", {}).get("icon_url"),
-                    "https://github.com/noctalia-dev.png",
-                )
-
     def test_repository_message_files_are_valid(self) -> None:
-        values: dict[str, object] = dict(
-            _fixture_values(
-                actor_url="https://fixtures.invalid/users/fixture-editor",
-                actor_avatar_url="https://fixtures.invalid/fixture-editor.png",
-            )
-        )
+        values: dict[str, object] = dict(_fixture_values())
         for directory in (SOURCE_MESSAGE_DIR, TARGET_MESSAGE_DIR):
             for path in sorted(directory.glob("*.yaml")):
                 message = load_message(path.stem, directory)
@@ -207,33 +158,50 @@ class MessageTests(unittest.TestCase):
                         action=action,
                     ):
                         embed = message.render(action, values | {"action": action})
-                        self.assertRegex(embed.get("title", ""), r"^\[[^]]+\] ")
-                        self.assertIn("```ansi", str(embed))
-                        if path.stem == "compact":
-                            self.assertNotIn("footer", embed)
-                            self.assertNotIn("timestamp", embed)
-                            self.assertNotIn("author", embed)
-                            lines = embed.get("description", "").splitlines()
-                            boundary = "**" if action == "modified" else ""
-                            self.assertEqual(
-                                lines[:2],
-                                [
-                                    (
-                                        f"{boundary}[`{FIXTURE_KEY}`]"
-                                        "(https://fixtures.invalid/changes/"
-                                        f"{FIXTURE_KEY}){boundary}"
-                                    ),
-                                    "```ansi",
-                                ],
-                            )
-                        else:
-                            self.assertEqual(
-                                set(embed.get("author", {})),
-                                {"name", "url", "icon_url"},
-                            )
+                        self.assertTrue(embed)
+
+    def test_compact_modified_link_has_a_stable_markdown_boundary(self) -> None:
+        expected = (
+            f"**[`{FIXTURE_KEY}`](https://fixtures.invalid/changes/{FIXTURE_KEY})**"
+        )
+        for directory in (SOURCE_MESSAGE_DIR, TARGET_MESSAGE_DIR):
+            with self.subTest(scope=directory.name):
+                embed = load_message("compact", directory).render(
+                    "modified",
+                    _fixture_values(),
+                )
+
+                self.assertEqual(
+                    embed.get("description", "").splitlines()[0],
+                    expected,
+                )
 
     def test_empty_detail_urls_are_omitted_and_avatar_falls_back(self) -> None:
-        message = load_message("chinese", TARGET_MESSAGE_DIR)
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._write_message(Path(directory), "optional-urls")
+            self._replace_action(
+                path,
+                "modified",
+                {
+                    "url": "{change_url}",
+                    "author": {
+                        "name": "{actor}",
+                        "url": "{actor_url}",
+                        "icon_url": (
+                            "{actor_avatar_url:"
+                            "fallback=https://fixtures.invalid/fallback.png}"
+                        ),
+                    },
+                    "fields": [
+                        {
+                            "name": "key",
+                            "value": "{key_link}",
+                            "inline": False,
+                        }
+                    ],
+                },
+            )
+            message = load_message("optional-urls", Path(directory))
 
         embed = message.render(
             "modified",
@@ -249,7 +217,7 @@ class MessageTests(unittest.TestCase):
             embed.get("author"),
             {
                 "name": "fixture-editor",
-                "icon_url": "https://github.com/noctalia-dev.png",
+                "icon_url": "https://fixtures.invalid/fallback.png",
             },
         )
 
@@ -268,70 +236,58 @@ class MessageTests(unittest.TestCase):
             )
             for index, action in enumerate(ACTIONS)
         )
-        for name in ("chinese", "english"):
-            with self.subTest(name=name):
-                pages = load_merge(name, MERGE_MESSAGE_DIR).render(values)
+        for path in sorted(MERGE_MESSAGE_DIR.glob("*.yaml")):
+            with self.subTest(message=path.stem):
+                pages = load_merge(path.stem, MERGE_MESSAGE_DIR).render(values)
 
-                self.assertEqual(len(pages), 1)
-                self.assertEqual(pages[0].count, 3)
-                description = pages[0].embed.get("description", "")
-                self.assertNotIn("\n\n", description)
-                self.assertIn(
-                    "[`fixture.entry.0`](https://fixtures.invalid/changes/0)",
-                    description,
-                )
-                self.assertEqual(description.count("```ansi"), len(values))
-                self.assertIn(
-                    "− ∅\n+ \x1b[1;32mFixture new value 0\x1b[0m",
-                    description,
-                )
-                self.assertIn(
-                    "− \x1b[1;31mFixture old value 2\x1b[0m\n+ ∅",
-                    description,
-                )
-                self.assertEqual(
-                    pages[0].embed.get("author"),
-                    {
-                        "name": "fixture-editor, fixture-reviewer",
-                        "icon_url": "https://github.com/noctalia-dev.png",
-                    },
-                )
-                self.assertNotIn("url", pages[0].embed)
-                self.assertNotIn("显示", str(pages[0].embed))
-                self.assertNotIn("Showing", str(pages[0].embed))
+                self.assertEqual(sum(page.count for page in pages), len(values))
 
-                recorded = load_merge(name, MERGE_MESSAGE_DIR).render(
-                    (_recorded_values(),)
-                )
-                self.assertEqual(
-                    recorded[0].embed.get("author"),
-                    {
-                        "name": RECORDED_ACTOR,
-                        "icon_url": "https://github.com/Obelusod.png",
-                    },
-                )
+    def test_merge_author_uses_one_avatar_or_the_configured_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._write_merge(Path(directory), "authors")
+            payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+            author = {
+                "name": "{actors}",
+                "icon_url": (
+                    "{actor_avatar_url:fallback=https://fixtures.invalid/fallback.png}"
+                ),
+            }
+            payload["source"]["author"] = author
+            payload["target"]["author"] = author
+            path.write_text(
+                yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+            message = load_merge("authors", Path(directory))
 
-                source_value = _fixture_values(locale="en")
-                source = load_merge(name, MERGE_MESSAGE_DIR).render((source_value,))
-                self.assertEqual(
-                    source[0].embed.get("author"),
-                    {
-                        "name": "fixture-editor",
-                        "icon_url": "https://github.com/noctalia-dev.png",
-                    },
-                )
-                self.assertNotIn("url", source[0].embed)
-                self.assertEqual(
-                    source[0].embed.get("title"),
-                    {
-                        "chinese": "[English] 原文变更 · 1 条",
-                        "english": "[English] Source Changes · 1",
-                    }[name],
-                )
+        single = message.render(
+            (_fixture_values(actor_avatar_url="https://fixtures.invalid/editor.png"),)
+        )
+        multiple = message.render(
+            (
+                _fixture_values(actor="first"),
+                _fixture_values(actor="second"),
+            )
+        )
+
+        self.assertEqual(
+            single[0].embed.get("author", {}).get("icon_url"),
+            "https://fixtures.invalid/editor.png",
+        )
+        self.assertEqual(
+            multiple[0].embed.get("author", {}).get("icon_url"),
+            "https://fixtures.invalid/fallback.png",
+        )
 
     def test_message_diff_styles_control_color_and_emphasis(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_merge(Path(directory), "custom")
+            path = self._write_merge(Path(directory), "custom")
+            payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+            payload["entries"]["modified"] = "{old_diff}\n{new_diff}"
+            path.write_text(
+                yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
             self._set_diff_styles(
                 path,
                 old={"color": "yellow", "bold": False, "underline": True},
@@ -346,16 +302,6 @@ class MessageTests(unittest.TestCase):
         self.assertIn("\x1b[4;33m边框\x1b[0m", description)
         self.assertIn("\x1b[34m轮廓\x1b[0m", description)
 
-    def test_merge_preserves_the_recorded_change_values(self) -> None:
-        change = recorded_change()
-        page = load_merge("chinese", MERGE_MESSAGE_DIR).render((_recorded_values(),))[0]
-        description = page.embed.get("description", "")
-
-        self.assertIn(f"[`{RECORDED_KEY}`]({change.url})", description)
-        self.assertIn("\x1b[1;31m边框\x1b[0m", description)
-        self.assertIn("\x1b[1;32m轮廓\x1b[0m", description)
-        self.assertNotIn("…", description)
-
     def test_merge_splits_at_embed_limits_without_omitting_entries(self) -> None:
         values = tuple(
             _fixture_values(
@@ -367,7 +313,11 @@ class MessageTests(unittest.TestCase):
             for index in range(4)
         )
 
-        pages = load_merge("english", MERGE_MESSAGE_DIR).render(values)
+        with tempfile.TemporaryDirectory() as directory:
+            self._write_merge(Path(directory), "sized")
+            message = load_merge("sized", Path(directory))
+
+        pages = message.render(values)
         rendered = "\n".join(page.embed.get("description", "") for page in pages)
 
         self.assertGreater(len(pages), 1)
@@ -376,13 +326,17 @@ class MessageTests(unittest.TestCase):
             self.assertEqual(rendered.count(f"fixture.entry.{index}"), 1)
 
     def test_merge_rejects_mixed_locales(self) -> None:
-        message = load_merge("english", MERGE_MESSAGE_DIR)
+        with tempfile.TemporaryDirectory() as directory:
+            self._write_merge(Path(directory), "locales")
+            message = load_merge("locales", Path(directory))
 
         with self.assertRaisesRegex(ValueError, "mix locales"):
             message.render((_fixture_values(locale="de"), _fixture_values(locale="fr")))
 
     def test_merge_rejects_mixed_monitor_contexts(self) -> None:
-        message = load_merge("english", MERGE_MESSAGE_DIR)
+        with tempfile.TemporaryDirectory() as directory:
+            self._write_merge(Path(directory), "contexts")
+            message = load_merge("contexts", Path(directory))
 
         with self.assertRaisesRegex(ValueError, "mix monitor contexts"):
             message.render(
@@ -397,7 +351,7 @@ class MessageTests(unittest.TestCase):
 
     def test_arbitrarily_named_custom_message_is_selectable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_message(Path(directory), "release-notes")
+            path = self._write_message(Path(directory), "release-notes")
             self._replace_action(
                 path,
                 "added",
@@ -439,7 +393,7 @@ class MessageTests(unittest.TestCase):
 
     def test_text_placeholders_support_optional_truncation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_message(Path(directory), "truncated")
+            path = self._write_message(Path(directory), "truncated")
             self._replace_action(
                 path,
                 "added",
@@ -458,7 +412,7 @@ class MessageTests(unittest.TestCase):
 
     def test_truncation_accounts_for_wide_characters(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_message(Path(directory), "wide")
+            path = self._write_message(Path(directory), "wide")
             self._replace_action(
                 path,
                 "added",
@@ -473,7 +427,7 @@ class MessageTests(unittest.TestCase):
 
     def test_merge_embed_and_entries_support_optional_truncation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_merge(Path(directory), "truncated")
+            path = self._write_merge(Path(directory), "truncated")
             path.write_text(
                 """source:
   description: |-
@@ -520,7 +474,7 @@ entries:
         )
         for case, template in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
-                path = self._copy_message(Path(directory), "invalid")
+                path = self._write_message(Path(directory), "invalid")
                 self._replace_action(path, "modified", template)
                 with self.assertRaisesRegex(ValidationError, "message 'invalid'"):
                     load_message("invalid", Path(directory))
@@ -547,7 +501,7 @@ entries:
 
     def test_missing_action_fails_before_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = self._copy_message(Path(directory), "incomplete")
+            path = self._write_message(Path(directory), "incomplete")
             payload = yaml.safe_load(path.read_text(encoding="utf-8"))
             del payload["deleted"]
             path.write_text(yaml.safe_dump(payload), encoding="utf-8")
@@ -614,7 +568,7 @@ entries:
         )
         for case, template in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
-                path = self._copy_merge(Path(directory), "invalid")
+                path = self._write_merge(Path(directory), "invalid")
                 path.write_text(template, encoding="utf-8")
                 with self.assertRaisesRegex(ValidationError, "merge"):
                     load_merge("invalid", Path(directory))

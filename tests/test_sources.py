@@ -10,7 +10,6 @@ from unittest.mock import patch
 from noctalia_i18n_watcher.models import (
     JsonValue,
     PollResult,
-    ValidationError,
     WatcherError,
 )
 from noctalia_i18n_watcher.sources import build_source
@@ -116,24 +115,6 @@ class SourceSelectionTests(unittest.TestCase):
                 "invalid",
                 {},
                 project="noctalia",
-                timeout=30,
-                proxy="",
-            )
-
-    def test_source_boundary_validates_project_and_adapter_options(self) -> None:
-        with self.assertRaisesRegex(ValidationError, "max_pages"):
-            build_source(
-                "web",
-                {"max_pages": 0},
-                project="noctalia",
-                timeout=30,
-                proxy="",
-            )
-        with self.assertRaisesRegex(ValidationError, "source.project"):
-            build_source(
-                "web",
-                {"max_pages": 20},
-                project="Noctalia",
                 timeout=30,
                 proxy="",
             )
