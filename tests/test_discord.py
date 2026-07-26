@@ -397,7 +397,7 @@ class DiscordTests(unittest.TestCase):
                     ],
                     "footer": {
                         "text": (
-                            "Monitor · noctalia · Project · noctalia · Route · default"
+                            "Monitor: noctalia · Project: noctalia · Route: default"
                         )
                     },
                 }
@@ -488,7 +488,7 @@ class DiscordTests(unittest.TestCase):
         )
         self.assertEqual(
             embed["footer"]["text"],
-            "Monitor · noctalia · Project · noctalia · Route · default",
+            "Monitor: noctalia · Project: noctalia · Route: default",
         )
         self.assertNotIn("timestamp", embed)
 

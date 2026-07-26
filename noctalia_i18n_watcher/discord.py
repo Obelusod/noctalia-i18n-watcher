@@ -174,8 +174,8 @@ def _route_actions(route: DiscordRoute) -> str:
 def _route_footer(route: DiscordRoute) -> EmbedFooter:
     return {
         "text": (
-            f"Monitor · {route.monitor_id} · Project · {route.project} · "
-            f"Route · {route.id}"
+            f"Monitor: {route.monitor_id} · Project: {route.project} · "
+            f"Route: {route.id}"
         )
     }
 
