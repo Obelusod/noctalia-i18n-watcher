@@ -12,7 +12,7 @@ added:
 modified:
   title: "[{locale}] Modified 1 translation"
   description: |-
-    {key_link}
+    **{key_link}**
     ```ansi
     − {old_diff}
     + {new_diff}

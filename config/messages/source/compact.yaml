@@ -12,7 +12,7 @@ added:
 modified:
   title: "[English] Modified 1 source text"
   description: |-
-    {key_link}
+    **{key_link}**
     ```ansi
     − {old_diff}
     + {new_diff}

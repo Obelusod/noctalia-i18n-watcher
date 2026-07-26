@@ -214,13 +214,14 @@ class MessageTests(unittest.TestCase):
                             self.assertNotIn("timestamp", embed)
                             self.assertNotIn("author", embed)
                             lines = embed.get("description", "").splitlines()
+                            boundary = "**" if action == "modified" else ""
                             self.assertEqual(
                                 lines[:2],
                                 [
                                     (
-                                        f"[`{FIXTURE_KEY}`]"
+                                        f"{boundary}[`{FIXTURE_KEY}`]"
                                         "(https://fixtures.invalid/changes/"
-                                        f"{FIXTURE_KEY})"
+                                        f"{FIXTURE_KEY}){boundary}"
                                     ),
                                     "```ansi",
                                 ],
