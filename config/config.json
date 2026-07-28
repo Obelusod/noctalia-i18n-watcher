@@ -10,13 +10,7 @@
   "monitors": [
     {
       "id": "noctalia",
-      "source": {
-        "project": "noctalia",
-        "adapter": "web",
-        "options": {
-          "max_pages": 20
-        }
-      },
+      "project": "noctalia",
       "webhooks": [
         {
           "id": "default",
@@ -33,11 +27,8 @@
           "delivery": {
             "quiet_seconds": 240,
             "max_wait_seconds": 900,
-            "latest_only": true,
-            "merge": {
-              "enabled": true,
-              "threshold": 5
-            }
+            "fold_changes": true,
+            "merge_threshold": 5
           },
           "notify_baseline": true
         }

@@ -4,11 +4,11 @@
 
 Noctalia i18n Watcher is an unofficial change monitor for localization projects on [Noctalia Translate](https://i18n.noctalia.dev/projects). It supports delivering additions, modifications, and deletions of source text and translations to independent Discord webhook routes.
 
-By default, the built-in web adapter monitors `noctalia`. Other projects such as `official-plugins` can be selected through configuration, while a systemd timer handles scheduled runs.
+By default, the application monitors `noctalia`. Other projects such as `official-plugins` can be selected through configuration, while a systemd timer handles scheduled runs.
 
 ## Features
 
-- Run multiple monitors in one installation, each selecting its own project, source, and Discord routes.
+- Run multiple monitors in one installation, each selecting its own project and Discord routes.
 - Configure multiple routes per monitor with independent locale, action, message, and delivery settings.
 - Use detailed, compact, or merged messages, with Discord embed content and layout defined in YAML.
 - Wait for continuous activity to settle while enforcing a maximum delay, accommodating both isolated and concentrated changes.
@@ -17,7 +17,6 @@ By default, the built-in web adapter monitors `noctalia`. Other projects such as
 - Continue with later monitors after one fails; retain pending Discord deliveries without repeating successful ones.
 - Disable Discord mention parsing so webhook messages cannot unexpectedly notify users, roles, or `@everyone`.
 - Manage immediate deliveries, read-only previews, status inspection, history pages, and baseline resets from the command line.
-- Add another upstream through a source adapter without changing monitoring, messages, or Discord delivery.
 
 ## Message format
 
@@ -59,21 +58,14 @@ Today at 5:51 PM
 │       ├── target/           # Target-language messages
 │       └── merge/            # Merged delivery messages
 ├── noctalia_i18n_watcher/    # Application source
-│   ├── sources/              # Source adapters
-│   │   └── web.py            # Web scraping adapter
 │   ├── app.py                # Application operations and composition
 │   ├── cli.py                # Program entry and command-line handling
 │   ├── config.py             # Configuration loading/validation
-│   ├── diff.py               # Multilingual value differences
-│   ├── discord.py            # Discord message rendering and delivery
-│   ├── messages.py           # YAML message loading and rendering
-│   ├── models.py             # Shared data models
-│   ├── monitor.py            # Change polling and delivery
-│   └── state.py              # SQLite state storage
+│   └── discord.py            # Discord integration
 ├── scripts/                  # Deployment and management scripts
 ├── systemd/                  # systemd scheduling
 ├── tests/                    # Automated tests
-└── pyproject.toml            # Development configuration
+└── pyproject.toml            # Project and development configuration
 ```
 
 ## Configuration
@@ -92,14 +84,12 @@ Each `monitors[]` entry contains:
 | Field | Purpose |
 | --- | --- |
 | `id` | Stable monitor ID, unique across the configuration |
-| `source.project` | Localization project identifier, such as `noctalia` or `community-plugins` |
-| `source.adapter` | Data-source adapter under `noctalia_i18n_watcher.sources` |
-| `source.options` | Options owned and validated by the selected adapter |
+| `project` | Localization project identifier, such as `noctalia` or `community-plugins` |
 | `webhooks` | One or more Discord routes owned by this monitor |
 
-The built-in web adapter accepts `source.options.max_pages`, initially `20`, to bound the history read during cursor recovery; its range is 1–100. The project identifier comes from its URL, such as `/projects/community-plugins`.
+The project identifier comes from its URL, such as `/projects/community-plugins`. Cursor recovery follows the available history until the persisted event is found.
 
-To add a project, copy one monitor object in [`config/config.json`](config/config.json), then assign a unique monitor `id`, select its source, and configure its routes. Route IDs are local to a monitor, and the same Discord webhook URL may be used by different monitors.
+To add a project, copy one monitor object in [`config/config.json`](config/config.json), then assign a unique monitor `id`, set its project, and configure its routes. Route IDs are local to a monitor, and the same Discord webhook URL may be used by different monitors.
 
 Each `webhooks[]` entry contains:
 
@@ -114,14 +104,13 @@ Each `webhooks[]` entry contains:
 | `messages` | Source-language, target-language, and merged delivery message names |
 | `delivery.quiet_seconds` | Required inactivity before automatic delivery, from 0 to 86400 seconds |
 | `delivery.max_wait_seconds` | Maximum wait from the oldest item, from 0 to 604800 seconds and not less than `quiet_seconds` |
-| `delivery.latest_only` | Whether to fold queued changes for each locale and key into their final result |
-| `delivery.merge.enabled` | Whether to merge locale batches that exceed the threshold |
-| `delivery.merge.threshold` | Locale batch threshold; when enabled, `0` merges every non-empty batch, from 0 to 100 |
+| `delivery.fold_changes` | Whether to fold queued changes for each locale and key into their net result |
+| `delivery.merge_threshold` | Locale batch threshold; `null` disables merging and `0` merges every non-empty batch, otherwise 0–100 |
 | `notify_baseline` | Whether to send the route's baseline and subscription summary |
 
-All listed fields are required. At least one monitor and one route per monitor must be configured; validation errors prevent startup. After changing a configured monitor's project or adapter, run `sudo noctalia-i18n-watcher reset state --monitor ID` to establish fresh state for the new source.
+All listed fields are required. At least one monitor and one route per monitor must be configured; validation errors prevent startup. After changing a configured monitor's project, run `sudo noctalia-i18n-watcher reset full --monitor ID` to clear its monitoring state and establish a baseline for the new source.
 
-`locales` matches `Change.locale` in the normalized change, which represents a selected project locale such as `de`, `zh-Hans`, or `pt-BR`. Adapters only acquire and normalize upstream changes; the selected localization project determines its supported locales. `["*"]` matches every normalized locale identifier, while explicit lists match exactly and must be updated when the project adds or renames an identifier. `"*"` cannot be combined with explicit identifiers.
+`locales` matches `Change.locale` in the normalized change, which represents a selected project locale such as `de`, `zh-Hans`, or `pt-BR`. The selected localization project determines its supported locales. `["*"]` matches every normalized locale identifier, while explicit lists match exactly and must be updated when the project adds or renames an identifier. `"*"` cannot be combined with explicit identifiers.
 
 The `default` route in the initial configuration subscribes to English source text and Simplified Chinese, using English messages for both detailed and merged delivery. Batches above five changes for one locale are merged. The route waits for four minutes of inactivity with a fifteen-minute maximum.
 
@@ -165,7 +154,7 @@ Messages live under `/etc/noctalia-i18n-watcher/messages/<scope>/<name>.yaml`. N
 | English source and German | `["en", "de"]` | `{"source": "english", "target": "english", "merge": "english"}` |
 | Every locale | `["*"]` | `{"source": "compact", "target": "compact", "merge": "english"}` |
 
-`messages` must explicitly provide `source`, `target`, and `merge`. `locales` determines whether the source and target messages are loaded, while `delivery.merge.enabled` determines whether the merge message is loaded. Selections in an inactive scope are not validated against message files until that scope is enabled.
+`messages` must explicitly provide `source`, `target`, and `merge`. `locales` determines whether the source and target messages are loaded, while a non-null `delivery.merge_threshold` determines whether the merge message is loaded. Selections in an inactive scope are not validated against message files until that scope is enabled.
 
 Source and target files define `added`, `modified`, and `deleted`; see [`target/english.yaml`](config/messages/target/english.yaml) for a detailed message. Merge files define `source` and `target` embeds, `entries.separator`, and one entry for each action. Built-in messages render value changes as:
 
@@ -192,7 +181,7 @@ YAML strings support these placeholders:
 | Placeholder | Value |
 | --- | --- |
 | `{key}` | Translation key |
-| `{key_link}` | Code-styled key linked to the change detail when available |
+| `{key_link}` | Key linked to the change detail, or code-styled when unavailable |
 | `{monitor_id}` | Monitor ID owning the change |
 | `{project}` | Localization project selected by the monitor |
 | `{source}` | English source text |
@@ -236,7 +225,7 @@ Unavailable author URLs are omitted. YAML supports Discord Markdown and integer 
 
 ## Installation
 
-Requirements: Debian or Ubuntu with systemd and `apt-get`, Python 3.12+, root access, and one or more Discord webhooks.
+Requirements: Debian or Ubuntu with systemd and `apt-get`, Python 3.12+, root access, network access, and one or more Discord webhooks.
 
 ```bash
 sudo bash scripts/install.sh
@@ -255,7 +244,7 @@ Update the repository checkout, then run:
 sudo bash scripts/update.sh
 ```
 
-The update preserves the configuration, existing messages, and monitoring state. New built-in message files are installed only when their target path is absent.
+The update preserves the configuration, existing messages, and monitoring state. New built-in message files are installed only when their target path is absent. Before replacing the installed application, the new version validates the existing runtime data and cancels an incompatible update.
 
 ### Uninstall
 
@@ -276,8 +265,8 @@ Run `noctalia-i18n-watcher --help` to display the installed command summary. Ope
 | Command | Purpose |
 | --- | --- |
 | `sudo noctalia-i18n-watcher deliver [--monitor ID] [--dry-run]` | Collect immediately and deliver the current queue; `--dry-run` only previews without sending or writing state |
-| `sudo noctalia-i18n-watcher reset baseline [--monitor ID] [--notify]` | Rebuild the source cursor and English source-text snapshot; `--notify` sends a baseline summary |
-| `sudo noctalia-i18n-watcher reset state [--monitor ID] [--notify]` | Clear monitoring state and create a new baseline; `--notify` sends a baseline summary |
+| `sudo noctalia-i18n-watcher reset baseline [--monitor ID] [--notify]` | Replace the source baseline while preserving delivery state; `--notify` sends a baseline summary |
+| `sudo noctalia-i18n-watcher reset full [--monitor ID] [--notify]` | Clear all monitoring state and establish a new baseline; `--notify` sends a baseline summary |
 | `sudo noctalia-i18n-watcher validate [--monitor ID]` | Validate configuration, messages, and state without polling sources or contacting Discord |
 | `sudo noctalia-i18n-watcher status [--monitor ID] [--notify]` | Show the timer state, last service result, and persisted monitoring summaries; `--notify` sends status summaries |
 | `sudo noctalia-i18n-watcher history 1 [--monitor ID]` | Display the first source-native history page without sending or writing state |
@@ -286,7 +275,7 @@ Without `--monitor`, `deliver`, `reset`, `validate`, and `status` operate on eve
 
 ### Editing configuration
 
-Edit process settings, monitors, sources, and webhook routes:
+Edit process settings, monitors, projects, and webhook routes:
 
 ```bash
 sudoedit /etc/noctalia-i18n-watcher/config.json
@@ -308,54 +297,40 @@ Changes load on the next run; edit the schedule under [Check interval](#check-in
 
 ## Development
 
-Python 3.12 or later and uv are required. Create or update the environment from `uv.lock`:
+Python 3.12 or later and uv are required. Create the development environment:
 
 ```bash
-uv sync --locked
+uv venv
+uv pip install --editable . --group dev
 ```
 
 Run the complete test suite, or target one module while developing:
 
 ```bash
-uv run python -m unittest discover -v
-uv run python -m unittest tests.test_web -v
+uv run --no-sync python -m unittest discover -v
+uv run --no-sync python -m unittest tests.test_app -v
 ```
 
-The default suite uses fixed HTTP responses and temporary databases to verify configuration, sources, the monitoring pipeline, SQLite state, and Discord delivery without accessing external services.
+The default suite verifies application configuration, composition, CLI behavior, and status messages without accessing external services.
 
 Explicitly verify a source against its live upstream:
 
 ```bash
 NOCTALIA_LIVE_CONFIG=config/config.json \
-  uv run python -m unittest tests.live.LiveSourceTests -v
+  uv run --no-sync python -m unittest tests.live.LiveSourceTests -v
 ```
 
 Send one real test notification through a temporary Discord webhook:
 
 ```bash
 NOCTALIA_TEST_WEBHOOK_URL='https://discord.com/api/webhooks/...' \
-  uv run python -m unittest tests.live.LiveDiscordTests -v
+  uv run --no-sync python -m unittest tests.live.LiveDiscordTests -v
 ```
 
 Check formatting, lint rules, and static types:
 
 ```bash
-uv run ruff format --check .
-uv run ruff check .
-uv run basedpyright
+uv run --no-sync ruff format --check .
+uv run --no-sync ruff check .
+uv run --no-sync basedpyright
 ```
-
-### Sources
-
-Add `noctalia_i18n_watcher/sources/<adapter>.py` with the same name as `monitors[].source.adapter`. Every adapter receives the selected project and owns its `source.options`.
-
-| Member | Contract |
-| --- | --- |
-| `create(options, *, project, timeout, proxy)` | Construct the selected project source without network I/O after validating adapter options |
-| `poll(cursor)` | Return a `PollResult` for the adapter-owned JSON cursor |
-| `close()` | Release every resource owned by the adapter |
-| `history(page)` | Optional capability returning a one-based source-native history page |
-
-`PollResult` contains the changes, an adapter-owned JSON cursor, the scanned count, and `source_texts`. Initial polls and polls with changes include the complete English source-text mapping; an unchanged poll may omit `source_texts`. Keep IDs stable, order changes oldest-first, include timezones, and reject cursors from another adapter or project.
-
-Add `tests/test_<adapter>.py` using the shared [`PollScenario`](tests/contracts.py) contract with deterministic upstream responses.

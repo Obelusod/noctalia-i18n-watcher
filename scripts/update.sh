@@ -4,6 +4,7 @@ set -euo pipefail
 SOURCE_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 APP_DIR=/opt/noctalia-i18n-watcher
 CONFIG_DIR=/etc/noctalia-i18n-watcher
+MESSAGE_DIR=$CONFIG_DIR/messages
 STATE_DIR=/var/lib/noctalia-i18n-watcher
 SYSTEMD_DIR=/etc/systemd/system
 MANAGER_PATH=/usr/local/sbin/noctalia-i18n-watcher
@@ -51,6 +52,12 @@ if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --gid "$SERVICE_USER" --home-dir /nonexistent \
     --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
+
+# Config remains private; message files contain no credentials.
+install -d -o root -g root -m 0711 "$CONFIG_DIR"
+install -d -o root -g root -m 0755 "$MESSAGE_DIR"
+chown root:"$SERVICE_USER" "$CONFIG_DIR/config.json"
+chmod 0640 "$CONFIG_DIR/config.json"
 
 STAGING_DIR=$(mktemp -d /opt/.noctalia-i18n-watcher.XXXXXX)
 ROLLBACK_DIR=$(mktemp -d /opt/.noctalia-i18n-watcher.rollback.XXXXXX)
@@ -100,30 +107,28 @@ trap 'cleanup $?' EXIT
 
 while IFS= read -r message; do
   relative=${message#"$SOURCE_DIR/config/messages/"}
-  target=$CONFIG_DIR/messages/$relative
+  target=$MESSAGE_DIR/$relative
+  install -d -o root -g root -m 0755 "$(dirname -- "$target")"
   if [[ ! -e $target ]]; then
-    install -d -o root -g root -m 0755 "$(dirname -- "$target")"
     install -o root -g root -m 0644 "$message" "$target"
   fi
 done < <(
   find "$SOURCE_DIR/config/messages" -type f -name '*.yaml' -print | sort
 )
-
-while IFS= read -r module; do
-  install -D -o root -g root -m 0644 "$SOURCE_DIR/$module" "$STAGING_DIR/$module"
-done < <(
-  cd "$SOURCE_DIR"
-  find noctalia_i18n_watcher -type f -name '*.py' -print | sort
-)
-install -o root -g root -m 0644 "$SOURCE_DIR/requirements.txt" "$STAGING_DIR/"
+find "$MESSAGE_DIR" -type d \
+  -exec chown root:root {} + -exec chmod 0755 {} +
+find "$MESSAGE_DIR" -type f -name '*.yaml' \
+  -exec chown root:root {} + -exec chmod 0644 {} +
 
 python3 -m venv "$STAGING_DIR/.venv"
-"$STAGING_DIR/.venv/bin/pip" install --disable-pip-version-check -r \
-  "$STAGING_DIR/requirements.txt"
+"$STAGING_DIR/.venv/bin/pip" install --disable-pip-version-check "$SOURCE_DIR"
 chmod -R u=rwX,go=rX "$STAGING_DIR"
-CREDENTIALS_DIRECTORY=$CONFIG_DIR STATE_DIRECTORY=$STATE_DIR \
+if ! STATE_DIRECTORY=$STATE_DIR \
   /usr/bin/env --chdir="$STAGING_DIR" \
-  "$STAGING_DIR/.venv/bin/python" -m noctalia_i18n_watcher validate
+  "$STAGING_DIR/.venv/bin/python" -m noctalia_i18n_watcher validate; then
+  echo "Update cancelled before deployment: existing runtime data is incompatible." >&2
+  exit 1
+fi
 
 if systemctl is-active --quiet "$TIMER_NAME"; then
   timer_was_active=true
@@ -135,8 +140,6 @@ fi
 
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$STATE_DIR"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$STATE_DIR"
-chown root:"$SERVICE_USER" "$CONFIG_DIR/config.json"
-chmod 0640 "$CONFIG_DIR/config.json"
 
 for unit in "$SERVICE_NAME" "$TIMER_NAME"; do
   if [[ -e $SYSTEMD_DIR/$unit ]]; then

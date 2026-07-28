@@ -8,8 +8,9 @@ import logging
 from collections.abc import Sequence
 from dataclasses import asdict
 
+from noctalia_i18n_core import ResetMode
+
 from .app import Application
-from .models import ResetScope, WatcherError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class _Arguments(argparse.Namespace):
     dry_run: bool = False
     notify: bool = False
     page: int = 1
-    reset_scope: ResetScope = "baseline"
+    reset_mode: ResetMode = "baseline"
     scheduled: bool = False
 
 
@@ -65,15 +66,15 @@ def _parser() -> argparse.ArgumentParser:
         "reset",
         help="Rebuild the source baseline without replaying history.",
     )
-    reset_modes = reset.add_subparsers(dest="reset_scope", required=True)
+    reset_modes = reset.add_subparsers(dest="reset_mode", required=True)
     reset_help = {
-        "baseline": "Replace the source cursor and English source-text snapshot.",
-        "state": "Clear all monitoring state and establish a new baseline.",
+        "baseline": "Replace the source baseline while preserving delivery state.",
+        "full": "Clear all monitoring state and establish a new baseline.",
     }
-    for scope, help_text in reset_help.items():
-        reset_mode = reset_modes.add_parser(scope, help=help_text)
-        _monitor_option(reset_mode)
-        reset_mode.add_argument(
+    for mode, help_text in reset_help.items():
+        mode_parser = reset_modes.add_parser(mode, help=help_text)
+        _monitor_option(mode_parser)
+        mode_parser.add_argument(
             "--notify",
             action="store_true",
             help="Send a new baseline notification to configured Discord routes.",
@@ -136,7 +137,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 application.run(args.monitor, flush=True)
         elif args.command == "reset":
             application.reset(
-                args.reset_scope,
+                args.reset_mode,
                 args.monitor,
                 notify=args.notify,
             )
@@ -147,6 +148,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print_json(
                 {
                     monitor_id: asdict(summary)
+                    | {
+                        "updated_at": (
+                            None
+                            if summary.updated_at is None
+                            else summary.updated_at.isoformat()
+                        )
+                    }
                     for monitor_id, summary in application.status(
                         args.monitor, notify=args.notify
                     ).items()
@@ -159,10 +167,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     for change in application.history(args.page, args.monitor)
                 ]
             )
-        else:
-            raise AssertionError(f"Unknown command: {args.command}")
         return 0
-    except WatcherError as exc:
+    except (ValueError, RuntimeError) as exc:
         _LOGGER.error("%s", exc)
         return 1
     except Exception:

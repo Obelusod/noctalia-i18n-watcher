@@ -1,72 +1,40 @@
-"""Explicit live contracts for upstream services."""
+"""Explicit opt-in source and Discord checks."""
 
 from __future__ import annotations
 
 import os
 import unittest
-from contextlib import closing
 from pathlib import Path
 
-from noctalia_i18n_watcher.config import load_config
-from noctalia_i18n_watcher.discord import DiscordNotifier
-from noctalia_i18n_watcher.sources import HistorySource, build_source
+import requests
+from noctalia_i18n_core import DiscordWebhookSender
 
-from .factories import discord_options, discord_route, recorded_delivery
-from .fixtures import CONFIG_PATH
-
-_WEBHOOK_URL = os.environ.get("NOCTALIA_TEST_WEBHOOK_URL", "")
-_CONFIG_PATH = Path(os.environ.get("NOCTALIA_LIVE_CONFIG", str(CONFIG_PATH)))
+from noctalia_i18n_watcher.app import Application, RuntimePaths
 
 
 class LiveSourceTests(unittest.TestCase):
-    def test_configured_source_satisfies_the_public_contract(self) -> None:
-        config = load_config(_CONFIG_PATH)
-        for monitor in config.monitors:
-            with (
-                self.subTest(monitor=monitor.id),
-                closing(
-                    build_source(
-                        monitor.source.adapter,
-                        monitor.source.options,
-                        project=monitor.source.project,
-                        timeout=config.settings.http.request_timeout,
-                        proxy=config.settings.http.proxy_url,
-                    )
-                ) as source,
-            ):
-                changes = (
-                    source.history(1) if isinstance(source, HistorySource) else None
-                )
-                baseline = source.poll(None)
-                followup = source.poll(baseline.cursor)
+    def test_history(self) -> None:
+        value = os.environ.get("NOCTALIA_LIVE_CONFIG")
+        if not value:
+            self.skipTest("Set NOCTALIA_LIVE_CONFIG to opt into live source checks")
+        config = Path(value)
+        paths = RuntimePaths(config, config.parent / "messages", Path("unused"))
 
-                if changes is not None:
-                    self.assertEqual(
-                        len({change.id for change in changes}),
-                        len(changes),
-                    )
-                self.assertEqual(baseline.changes, ())
-                self.assertIsNotNone(baseline.source_texts)
-                if followup.changes:
-                    self.assertIsNotNone(followup.source_texts)
+        self.assertTrue(Application.load(paths).history(1))
 
 
-@unittest.skipUnless(
-    _WEBHOOK_URL,
-    "NOCTALIA_TEST_WEBHOOK_URL is required for the Discord live contract",
-)
 class LiveDiscordTests(unittest.TestCase):
-    def test_discord_accepts_a_rendered_notification(self) -> None:
-        route = discord_route(url=_WEBHOOK_URL)
-        notifier = DiscordNotifier(
-            (route,),
-            discord_options(),
+    def test_webhook(self) -> None:
+        url = os.environ.get("NOCTALIA_TEST_WEBHOOK_URL")
+        if not url:
+            self.skipTest("Set NOCTALIA_TEST_WEBHOOK_URL to opt into Discord checks")
+        session = requests.Session()
+        self.addCleanup(session.close)
+
+        DiscordWebhookSender(session, {"test": url}, 30).send(
+            "test",
+            {
+                "allowed_mentions": {"parse": []},
+                "content": "Noctalia i18n watcher live transport check.",
+            },
         )
-        try:
-            notifier.send(route.id, (recorded_delivery(),))
-        finally:
-            notifier.close()
-
-
-if __name__ == "__main__":
-    unittest.main()

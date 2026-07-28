@@ -4,11 +4,11 @@
 
 Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/projects) 本地化项目的非官方变更监控工具，支持将原文和译文的新增、修改、删除投递到多个独立 Discord Webhook 路由。
 
-默认通过内置网页适配器监控 `noctalia`，修改配置即可监控 `official-plugins` 等其他项目；systemd timer 负责定时运行。
+默认监控 `noctalia`，修改配置即可监控 `official-plugins` 等其他项目；systemd timer 负责定时运行。
 
 ## 功能特点
 
-- 在同一实例中运行多个监听器，分别选择项目、数据源和 Discord 路由。
+- 在同一实例中运行多个监听器，分别选择项目和 Discord 路由。
 - 每个监听器可配置多条路由，独立选择 locale、操作类型、文案和投递策略。
 - 提供详细、紧凑和合并投递文案，支持通过 YAML 自定义 Embed 内容与排版。
 - 可等待连续变更趋于平静后投递，也可限制最长等待时间，兼顾零散修改和集中更新。
@@ -17,7 +17,6 @@ Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/p
 - 单个监听器失败不会阻止后续监听器；Discord 路由失败时保留待投递消息，已成功投递不会重复。
 - Webhook 消息禁用 Discord 提及解析，不会意外通知用户、角色或 `@everyone`。
 - 提供立即投递、只读预览、状态查询、历史查看和基线重建等管理命令。
-- 数据采集通过适配器接入，新增上游无需修改监控、文案或 Discord 投递模块。
 
 ## 消息格式
 
@@ -59,21 +58,14 @@ Obelusod
 │       ├── target/           # 目标语言文案
 │       └── merge/            # 合并投递文案
 ├── noctalia_i18n_watcher/    # 程序源码
-│   ├── sources/              # 数据源适配器
-│   │   └── web.py            # 网页抓取适配器
 │   ├── app.py                # 应用操作与组件装配
 │   ├── cli.py                # 程序入口与命令行处理
 │   ├── config.py             # 配置加载/校验
-│   ├── diff.py               # 多语言值差异处理
-│   ├── discord.py            # Discord 消息渲染、投递
-│   ├── messages.py           # YAML 文案加载、渲染
-│   ├── models.py             # 共享数据模型
-│   ├── monitor.py            # 变更轮询与投递
-│   └── state.py              # SQLite 状态存储
+│   └── discord.py            # Discord 集成
 ├── scripts/                  # 部署与管理脚本
 ├── systemd/                  # systemd 定时调度
 ├── tests/                    # 自动化测试
-└── pyproject.toml            # 开发环境配置
+└── pyproject.toml            # 项目及开发环境配置
 ```
 
 ## 配置
@@ -92,14 +84,12 @@ Obelusod
 | 字段 | 用途 |
 | --- | --- |
 | `id` | 稳定且全局唯一的监听器 ID |
-| `source.project` | 本地化项目标识，例如 `noctalia` 或 `community-plugins` |
-| `source.adapter` | `noctalia_i18n_watcher.sources` 中的数据源适配器 |
-| `source.options` | 由所选适配器定义并校验的选项 |
+| `project` | 本地化项目标识，例如 `noctalia` 或 `community-plugins` |
 | `webhooks` | 该监听器拥有的一条或多条 Discord 路由 |
 
-内置网页适配器支持 `source.options.max_pages`，初始值为 `20`，用于限制恢复游标时读取的历史页数，范围为 1–100。项目标识取自 URL，例如 `/projects/community-plugins`。
+项目标识取自 URL，例如 `/projects/community-plugins`。恢复游标时会沿可用历史回溯，直至找到持久化事件。
 
-添加项目时，复制 [`config/config.json`](config/config.json) 中的一个监听器对象，为其设置唯一 `id`、数据源和路由。路由 ID 只需在所属监听器内唯一，不同监听器可以使用同一个 Discord Webhook URL。
+添加项目时，复制 [`config/config.json`](config/config.json) 中的一个监听器对象，为其设置唯一 `id`、项目和路由。路由 ID 只需在所属监听器内唯一，不同监听器可以使用同一个 Discord Webhook URL。
 
 每个 `webhooks[]` 项包含：
 
@@ -114,14 +104,13 @@ Obelusod
 | `messages` | 选择原文语言、目标语言和合并投递文案 |
 | `delivery.quiet_seconds` | 自动投递前需要连续无新变更的秒数，范围为 0–86400 |
 | `delivery.max_wait_seconds` | 最早记录的最长等待秒数，范围为 0–604800，且不小于 `quiet_seconds` |
-| `delivery.latest_only` | 是否将同一 locale 和键的待投递变更折叠为最终结果 |
-| `delivery.merge.enabled` | 是否合并超过阈值的 locale 批次 |
-| `delivery.merge.threshold` | locale 批次合并阈值；启用时，`0` 合并任意非空批次，范围为 0–100 |
+| `delivery.fold_changes` | 是否将同一 locale 和键的待投递变更折叠为净结果 |
+| `delivery.merge_threshold` | locale 批次合并阈值；`null` 禁用合并，`0` 合并任意非空批次，否则范围为 0–100 |
 | `notify_baseline` | 是否发送路由的基线与订阅摘要 |
 
-所有列出的字段均须填写。至少配置一个监听器，且每个监听器至少包含一条路由；校验错误会阻止启动。修改已有监听器的项目或适配器后，运行 `sudo noctalia-i18n-watcher reset state --monitor ID` 建立匹配的新状态。
+所有列出的字段均须填写。至少配置一个监听器，且每个监听器至少包含一条路由；校验错误会阻止启动。修改已有监听器的项目后，运行 `sudo noctalia-i18n-watcher reset full --monitor ID` 清空其监听状态，并为新数据源建立基线。
 
-`locales` 匹配规范化变更中的 `Change.locale`，它表示所选项目的 locale 标识，例如 `de`、`zh-Hans` 或 `pt-BR`。适配器只负责采集和规范化上游变更，所选本地化项目决定支持哪些语言。`["*"]` 匹配全部规范化 locale 标识，显式列表则精确匹配，项目新增或更改标识后需要相应修改配置。`"*"` 不能与其他标识并用。
+`locales` 匹配规范化变更中的 `Change.locale`，它表示所选项目的 locale 标识，例如 `de`、`zh-Hans` 或 `pt-BR`。所选本地化项目决定支持哪些语言。`["*"]` 匹配全部规范化 locale 标识，显式列表则精确匹配，项目新增或更改标识后需要相应修改配置。`"*"` 不能与其他标识并用。
 
 默认配置中的 `default` 路由同时订阅英文原文和简体中文，逐条消息与合并投递均使用英文文案。同一 locale 超过五条时合并；路由等待四分钟无新变更，最长等待十五分钟。
 
@@ -165,7 +154,7 @@ sudo systemctl restart noctalia-i18n-watcher.timer
 | 英文原文和德语 | `["en", "de"]` | `{"source": "english", "target": "english", "merge": "english"}` |
 | 所有 locale | `["*"]` | `{"source": "compact", "target": "compact", "merge": "english"}` |
 
-`messages` 必须显式填写 `source`、`target` 和 `merge`。`locales` 决定是否加载 source 和 target 文案，`delivery.merge.enabled` 决定是否加载 merge 文案；未启用范围的选择在启用前不会根据文案文件进行校验。
+`messages` 必须显式填写 `source`、`target` 和 `merge`。`locales` 决定是否加载 source 和 target 文案，非 `null` 的 `delivery.merge_threshold` 决定是否加载 merge 文案；未启用范围的选择在启用前不会根据文案文件进行校验。
 
 source 和 target 文件定义 `added`、`modified`、`deleted`，逐条文案可参考 [`target/chinese.yaml`](config/messages/target/chinese.yaml)。merge 文件定义 `source`、`target` Embed、`entries.separator` 和三种动作的条目排版。内置文案按以下格式显示值变更：
 
@@ -192,7 +181,7 @@ YAML 字符串支持以下占位符：
 | 占位符 | 内容 |
 | --- | --- |
 | `{key}` | 翻译键 |
-| `{key_link}` | 代码样式的翻译键；存在变更详情时附带链接 |
+| `{key_link}` | 链接到变更详情的翻译键；无详情时使用代码样式 |
 | `{monitor_id}` | 当前变更所属的监听器 ID |
 | `{project}` | 监听器选择的本地化项目 |
 | `{source}` | 英文原文 |
@@ -236,7 +225,7 @@ icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
 
 ## 安装
 
-需要使用带 systemd 和 `apt-get` 的 Debian 或 Ubuntu、Python 3.12+、root 权限和至少一个 Discord Webhook。
+需要使用带 systemd 和 `apt-get` 的 Debian 或 Ubuntu、Python 3.12+、root 权限、网络连接和至少一个 Discord Webhook。
 
 ```bash
 sudo bash scripts/install.sh
@@ -255,7 +244,7 @@ sudo systemctl enable --now noctalia-i18n-watcher.timer
 sudo bash scripts/update.sh
 ```
 
-更新会保留配置、现有文案和监听状态；仅在目标路径不存在时安装仓库新增的文案文件。
+更新会保留配置、现有文案和监听状态；仅在目标路径不存在时安装仓库新增的文案文件。替换已安装程序前，新版本会校验现有运行数据，并在不兼容时取消更新。
 
 ### 卸载
 
@@ -276,8 +265,8 @@ sudo bash scripts/uninstall.sh --purge
 | 命令 | 用途 |
 | --- | --- |
 | `sudo noctalia-i18n-watcher deliver [--monitor ID] [--dry-run]` | 立即采集并投递当前队列；`--dry-run` 仅预览，不发送或写入状态 |
-| `sudo noctalia-i18n-watcher reset baseline [--monitor ID] [--notify]` | 重建数据源游标和英文原文快照；`--notify` 发送基线摘要 |
-| `sudo noctalia-i18n-watcher reset state [--monitor ID] [--notify]` | 清空监听状态并重新建立基线；`--notify` 发送基线摘要 |
+| `sudo noctalia-i18n-watcher reset baseline [--monitor ID] [--notify]` | 替换数据源基线并保留投递状态；`--notify` 发送基线摘要 |
+| `sudo noctalia-i18n-watcher reset full [--monitor ID] [--notify]` | 清空全部监听状态并建立新基线；`--notify` 发送基线摘要 |
 | `sudo noctalia-i18n-watcher validate [--monitor ID]` | 校验配置、文案和状态，不轮询数据源或连接 Discord |
 | `sudo noctalia-i18n-watcher status [--monitor ID] [--notify]` | 查看 timer 状态、上次服务结果和各监听器的状态摘要；`--notify` 发送状态摘要 |
 | `sudo noctalia-i18n-watcher history 1 [--monitor ID]` | 查看数据源原生历史记录的第一页，不发送消息或写入状态 |
@@ -286,7 +275,7 @@ sudo bash scripts/uninstall.sh --purge
 
 ### 修改配置
 
-修改进程设置、监听器、数据源和 Webhook 路由：
+修改进程设置、监听器、项目和 Webhook 路由：
 
 ```bash
 sudoedit /etc/noctalia-i18n-watcher/config.json
@@ -308,54 +297,40 @@ sudo noctalia-i18n-watcher validate
 
 ## 开发
 
-需要 Python 3.12 或更高版本及 uv。按照 `uv.lock` 创建或更新开发环境：
+需要 Python 3.12 或更高版本和 uv。创建开发环境：
 
 ```bash
-uv sync --locked
+uv venv
+uv pip install --editable . --group dev
 ```
 
 运行全部测试，或在开发时仅运行一个模块：
 
 ```bash
-uv run python -m unittest discover -v
-uv run python -m unittest tests.test_web -v
+uv run --no-sync python -m unittest discover -v
+uv run --no-sync python -m unittest tests.test_app -v
 ```
 
-默认测试使用固定 HTTP 响应与临时数据库，验证配置、数据源、监控流水线、SQLite 状态和 Discord 投递，不访问外部服务。
+默认测试验证应用配置、装配、CLI 和状态消息，不访问外部服务。
 
 显式检查数据源与实时上游的契约：
 
 ```bash
 NOCTALIA_LIVE_CONFIG=config/config.json \
-  uv run python -m unittest tests.live.LiveSourceTests -v
+  uv run --no-sync python -m unittest tests.live.LiveSourceTests -v
 ```
 
 使用临时 Webhook 向 Discord 发送一条真实测试消息：
 
 ```bash
 NOCTALIA_TEST_WEBHOOK_URL='https://discord.com/api/webhooks/...' \
-  uv run python -m unittest tests.live.LiveDiscordTests -v
+  uv run --no-sync python -m unittest tests.live.LiveDiscordTests -v
 ```
 
 检查格式、代码规则和静态类型：
 
 ```bash
-uv run ruff format --check .
-uv run ruff check .
-uv run basedpyright
+uv run --no-sync ruff format --check .
+uv run --no-sync ruff check .
+uv run --no-sync basedpyright
 ```
-
-### 数据源
-
-在 `noctalia_i18n_watcher/sources/` 中创建与 `monitors[].source.adapter` 同名的 `<adapter>.py`。每个适配器接收所选项目，并负责自己的 `source.options`。
-
-| 成员 | 契约 |
-| --- | --- |
-| `create(options, *, project, timeout, proxy)` | 校验适配器选项，并在不联网的情况下构造所选项目的数据源 |
-| `poll(cursor)` | 根据适配器自有的 JSON 游标返回 `PollResult` |
-| `close()` | 释放适配器持有的全部资源 |
-| `history(page)` | 可选能力；按从 1 开始的页码返回数据源原生历史记录 |
-
-`PollResult` 包含变更、适配器自有 JSON 游标、扫描数量和 `source_texts`。初次轮询及包含变更的轮询提供完整英文原文映射；已有基线且无变更时可省略 `source_texts`。变更 ID 必须稳定、按时间从旧到新排列并带时区；属于其他适配器或项目的游标必须报错。
-
-新增 `tests/test_<adapter>.py`，使用共享的 [`PollScenario`](tests/contracts.py) 与确定的上游响应。

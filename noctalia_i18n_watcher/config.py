@@ -8,23 +8,13 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeGuard
 from urllib.parse import urlparse
 
-from .models import (
-    LOCALE_ID_PATTERN,
-    PROJECT_ID_PATTERN,
-    SOURCE_LOCALE,
-    Action,
-    DeliveryPolicy,
-    JsonValue,
-    MergePolicy,
-    ValidationError,
-    is_action,
-    validate_json,
-)
+from noctalia_i18n_core import SOURCE_LOCALE, Action, DeliveryPolicy
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-_ADAPTER_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+_PROJECT_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"})
 _PROXY_SCHEMES = frozenset({"http", "https", "socks4", "socks4a", "socks5", "socks5h"})
 _WEBHOOK_HOSTS = frozenset({"discord.com", "canary.discord.com", "ptb.discord.com"})
@@ -33,42 +23,17 @@ _USERNAME_MAX = 80
 
 
 @dataclass(frozen=True, slots=True)
-class HTTPSettings:
-    """Network policy shared by outbound adapters."""
+class Settings:
+    """Process-wide settings."""
 
     proxy_url: str
     request_timeout: float
-
-
-@dataclass(frozen=True, slots=True)
-class Settings:
-    """Process-wide settings grouped by their owner."""
-
-    http: HTTPSettings
     retention_days: int
     log_level: str
 
 
 @dataclass(frozen=True, slots=True)
-class SourceSettings:
-    """Selected localization project, source adapter, and adapter-owned options."""
-
-    project: str
-    adapter: str
-    options: dict[str, JsonValue]
-
-
-@dataclass(frozen=True, slots=True)
-class MessageSelection:
-    """Named messages selected by one route."""
-
-    source: str
-    target: str
-    merge: str
-
-
-@dataclass(frozen=True, slots=True)
-class Webhook:
+class WebhookConfig:
     """One Discord endpoint and its change subscription."""
 
     id: str
@@ -77,7 +42,9 @@ class Webhook:
     avatar_url: str
     locales: frozenset[str]
     actions: frozenset[Action]
-    messages: MessageSelection
+    source_message: str
+    target_message: str
+    merge_message: str
     delivery: DeliveryPolicy
     notify_baseline: bool
 
@@ -99,7 +66,7 @@ class Webhook:
     def uses_merge_message(self) -> bool:
         """Whether this route has merged delivery enabled."""
 
-        return self.delivery.merge.enabled
+        return self.delivery.merge_threshold is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,8 +74,8 @@ class MonitorConfig:
     """One independently stateful source and its Discord routes."""
 
     id: str
-    source: SourceSettings
-    webhooks: tuple[Webhook, ...]
+    project: str
+    webhooks: tuple[WebhookConfig, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,23 +86,43 @@ class Config:
     monitors: tuple[MonitorConfig, ...]
 
 
-def _object(value: JsonValue, label: str) -> dict[str, JsonValue]:
-    if not isinstance(value, dict):
+def _is_object(value: object) -> TypeGuard[dict[object, object]]:
+    return isinstance(value, dict)
+
+
+def _is_array(value: object) -> TypeGuard[list[object]]:
+    return isinstance(value, list)
+
+
+def _object(value: object, label: str) -> dict[str, object]:
+    if not _is_object(value):
         raise ValueError(f"{label} must be a JSON object")
+    output: dict[str, object] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            raise ValueError(f"{label} must use string keys")
+        output[key] = item
+    return output
+
+
+def _array(value: object, label: str) -> list[object]:
+    if not _is_array(value):
+        raise ValueError(f"{label} must be an array")
     return value
 
 
 def _exact_keys(
-    value: dict[str, JsonValue],
+    value: dict[str, object],
     required: frozenset[str],
     label: str,
 ) -> None:
+    problems: list[str] = []
     if missing := required - value.keys():
-        raise ValueError(f"{label} is missing required fields: {sorted(missing)}")
+        problems.append(f"missing required fields: {sorted(missing)}")
     if unknown := value.keys() - required:
-        raise ValueError(
-            f"{label} contains fields invalid in this scope: {sorted(unknown)}"
-        )
+        problems.append(f"fields invalid in this scope: {sorted(unknown)}")
+    if problems:
+        raise ValueError(f"{label} is invalid: {'; '.join(problems)}")
 
 
 def _string(value: object, label: str, *, allow_empty: bool = False) -> str:
@@ -226,7 +213,6 @@ def _avatar_url(value: object, label: str) -> str:
     try:
         parsed = urlparse(url)
         hostname = parsed.hostname
-        _ = parsed.port
     except ValueError as exc:
         raise ValueError(f"{label} is malformed") from exc
     if (
@@ -239,12 +225,13 @@ def _avatar_url(value: object, label: str) -> str:
 
 
 def _unique_strings(value: object, label: str) -> list[str]:
-    if not isinstance(value, list) or not value:
+    items = _array(value, label)
+    if not items:
         raise ValueError(f"{label} must be a non-empty string array")
-    items = [_string(item, label) for item in value]
-    if len(items) != len(set(items)):
+    strings = [_string(item, label) for item in items]
+    if len(strings) != len(set(strings)):
         raise ValueError(f"{label} must not contain duplicate values")
-    return items
+    return strings
 
 
 def _name(value: object, label: str) -> str:
@@ -255,12 +242,18 @@ def _name(value: object, label: str) -> str:
 
 
 def _action(value: str, label: str) -> Action:
-    if not is_action(value):
-        raise ValueError(f"{label} contains unsupported value: {value!r}")
-    return value
+    match value:
+        case "added":
+            return "added"
+        case "modified":
+            return "modified"
+        case "deleted":
+            return "deleted"
+        case _:
+            raise ValueError(f"{label} contains unsupported value: {value!r}")
 
 
-def _delivery(value: JsonValue, label: str) -> DeliveryPolicy:
+def _delivery(value: object, label: str) -> DeliveryPolicy:
     raw = _object(value, label)
     _exact_keys(
         raw,
@@ -268,23 +261,17 @@ def _delivery(value: JsonValue, label: str) -> DeliveryPolicy:
             {
                 "quiet_seconds",
                 "max_wait_seconds",
-                "latest_only",
-                "merge",
+                "fold_changes",
+                "merge_threshold",
             }
         ),
         label,
     )
-    merge_label = f"{label}.merge"
-    merge = _object(raw["merge"], merge_label)
-    _exact_keys(merge, frozenset({"enabled", "threshold"}), merge_label)
-    merge_policy = MergePolicy(
-        enabled=_boolean(merge["enabled"], f"{merge_label}.enabled"),
-        threshold=_integer(
-            merge["threshold"],
-            f"{merge_label}.threshold",
-            0,
-            100,
-        ),
+    threshold = raw["merge_threshold"]
+    merge_threshold = (
+        None
+        if threshold is None
+        else _integer(threshold, f"{label}.merge_threshold", 0, 100)
     )
     try:
         return DeliveryPolicy(
@@ -300,17 +287,17 @@ def _delivery(value: JsonValue, label: str) -> DeliveryPolicy:
                 0,
                 604800,
             ),
-            latest_only=_boolean(
-                raw["latest_only"],
-                f"{label}.latest_only",
+            fold_changes=_boolean(
+                raw["fold_changes"],
+                f"{label}.fold_changes",
             ),
-            merge=merge_policy,
+            merge_threshold=merge_threshold,
         )
     except ValueError as exc:
         raise ValueError(f"{label} is invalid: {exc}") from exc
 
 
-def _settings(raw: dict[str, JsonValue]) -> Settings:
+def _settings(raw: dict[str, object]) -> Settings:
     _exact_keys(raw, frozenset({"http", "retention_days", "log_level"}), "settings")
 
     http = _object(raw["http"], "settings.http")
@@ -320,14 +307,12 @@ def _settings(raw: dict[str, JsonValue]) -> Settings:
         raise ValueError(f"settings.log_level is unknown: {log_level}")
 
     return Settings(
-        http=HTTPSettings(
-            proxy_url=_proxy_url(http["proxy_url"], "settings.http.proxy_url"),
-            request_timeout=_float(
-                http["request_timeout"],
-                "settings.http.request_timeout",
-                0.001,
-                300,
-            ),
+        proxy_url=_proxy_url(http["proxy_url"], "settings.http.proxy_url"),
+        request_timeout=_float(
+            http["request_timeout"],
+            "settings.http.request_timeout",
+            0.001,
+            300,
         ),
         retention_days=_integer(
             raw["retention_days"],
@@ -339,19 +324,7 @@ def _settings(raw: dict[str, JsonValue]) -> Settings:
     )
 
 
-def _source(raw: dict[str, JsonValue], label: str) -> SourceSettings:
-    _exact_keys(raw, frozenset({"project", "adapter", "options"}), label)
-    project = _string(raw["project"], f"{label}.project")
-    if not PROJECT_ID_PATTERN.fullmatch(project):
-        raise ValueError(f"{label}.project must be a lowercase project identifier")
-    adapter = _string(raw["adapter"], f"{label}.adapter")
-    if not _ADAPTER_PATTERN.fullmatch(adapter):
-        raise ValueError(f"{label}.adapter must match {_ADAPTER_PATTERN.pattern!r}")
-    options = _object(raw["options"], f"{label}.options")
-    return SourceSettings(project=project, adapter=adapter, options=options)
-
-
-def _webhook(raw: dict[str, JsonValue], label: str) -> Webhook:
+def _webhook(raw: dict[str, object], label: str) -> WebhookConfig:
     _exact_keys(
         raw,
         frozenset(
@@ -378,15 +351,6 @@ def _webhook(raw: dict[str, JsonValue], label: str) -> Webhook:
     avatar_url = _avatar_url(raw["avatar_url"], f"{label}.avatar_url")
 
     raw_locales = _unique_strings(raw["locales"], f"{label}.locales")
-    invalid = [
-        locale
-        for locale in raw_locales
-        if locale != "*" and not LOCALE_ID_PATTERN.fullmatch(locale)
-    ]
-    if invalid:
-        raise ValueError(
-            f"{label}.locales contains invalid locale identifiers: {invalid}"
-        )
     if "*" in raw_locales and len(raw_locales) != 1:
         raise ValueError(
             f"{label}.locales cannot combine '*' with explicit locale identifiers"
@@ -397,7 +361,6 @@ def _webhook(raw: dict[str, JsonValue], label: str) -> Webhook:
         _action(action, action_label)
         for action in _unique_strings(raw["actions"], action_label)
     )
-
     message_label = f"{label}.messages"
     raw_messages = _object(raw["messages"], message_label)
     _exact_keys(raw_messages, frozenset({"source", "target", "merge"}), message_label)
@@ -407,34 +370,31 @@ def _webhook(raw: dict[str, JsonValue], label: str) -> Webhook:
     delivery = _delivery(raw["delivery"], f"{label}.delivery")
     notify_baseline = _boolean(raw["notify_baseline"], f"{label}.notify_baseline")
 
-    return Webhook(
+    return WebhookConfig(
         id=route_id,
         url=url,
         username=username,
         avatar_url=avatar_url,
         locales=frozenset(raw_locales),
         actions=actions,
-        messages=MessageSelection(
-            source=source_message,
-            target=target_message,
-            merge=merge_message,
-        ),
+        source_message=source_message,
+        target_message=target_message,
+        merge_message=merge_message,
         delivery=delivery,
         notify_baseline=notify_baseline,
     )
 
 
-def _monitor(raw: dict[str, JsonValue], index: int) -> MonitorConfig:
+def _monitor(raw: dict[str, object], index: int) -> MonitorConfig:
     label = f"monitors[{index}]"
-    _exact_keys(raw, frozenset({"id", "source", "webhooks"}), label)
+    _exact_keys(raw, frozenset({"id", "project", "webhooks"}), label)
     monitor_id = _name(raw["id"], f"{label}.id")
-    source = _source(
-        _object(raw["source"], f"{label}.source"),
-        f"{label}.source",
-    )
+    project = _string(raw["project"], f"{label}.project")
+    if not _PROJECT_PATTERN.fullmatch(project):
+        raise ValueError(f"{label}.project must be a lowercase project identifier")
 
-    raw_webhooks = raw["webhooks"]
-    if not isinstance(raw_webhooks, list) or not raw_webhooks:
+    raw_webhooks = _array(raw["webhooks"], f"{label}.webhooks")
+    if not raw_webhooks:
         raise ValueError(f"{label}.webhooks must be a non-empty array")
     webhooks = tuple(
         _webhook(
@@ -453,18 +413,19 @@ def _monitor(raw: dict[str, JsonValue], index: int) -> MonitorConfig:
 
     return MonitorConfig(
         id=monitor_id,
-        source=source,
+        project=project,
         webhooks=webhooks,
     )
 
 
-def _load_config(path: Path) -> Config:
+def load_config(path: Path) -> Config:
+    """Load and validate one runtime configuration file."""
+
     try:
         raw: object = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"Cannot load configuration {path}: {exc}") from exc
-    payload = validate_json(raw, "configuration")
-    root = _object(payload, "configuration")
+    root = _object(raw, "configuration")
     _exact_keys(
         root,
         frozenset({"settings", "monitors"}),
@@ -472,8 +433,8 @@ def _load_config(path: Path) -> Config:
     )
     settings = _settings(_object(root["settings"], "settings"))
 
-    raw_monitors = root["monitors"]
-    if not isinstance(raw_monitors, list) or not raw_monitors:
+    raw_monitors = _array(root["monitors"], "monitors")
+    if not raw_monitors:
         raise ValueError("monitors must be a non-empty array")
     monitors = tuple(
         _monitor(_object(item, f"monitors[{index}]"), index)
@@ -491,12 +452,3 @@ def _load_config(path: Path) -> Config:
         settings=settings,
         monitors=monitors,
     )
-
-
-def load_config(path: Path) -> Config:
-    """Load and validate one runtime configuration file."""
-
-    try:
-        return _load_config(path)
-    except ValueError as exc:
-        raise ValidationError(str(exc)) from exc
