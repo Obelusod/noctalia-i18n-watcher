@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Obelus" }]
 dependencies = [
-  "noctalia-i18n-core==0.1.0",
+  "noctalia-i18n-core==0.1.1",
   "requests[socks]==2.34.2",
 ]
 
