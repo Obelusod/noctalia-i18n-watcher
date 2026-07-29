@@ -75,8 +75,8 @@ Runtime configuration lives in `/etc/noctalia-i18n-watcher/config.json`. Process
 | Field | Initial value | Purpose |
 | --- | --- | --- |
 | `settings.http.proxy_url` | `""` | HTTP(S) or SOCKS proxy URL with a port; empty connects directly |
-| `settings.http.request_timeout` | `30` | HTTP request timeout from 0.001 to 300 seconds |
-| `settings.retention_days` | `180` | Delivery-receipt retention from 1 to 3650 days |
+| `settings.http.request_timeout` | `30` | Positive finite HTTP request timeout in seconds |
+| `settings.retention_days` | `180` | Non-negative delivery-receipt retention in days |
 | `settings.log_level` | `INFO` | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`, or `NOTSET` |
 
 Each `monitors[]` entry contains:
@@ -102,10 +102,10 @@ Each `webhooks[]` entry contains:
 | `locales` | Locale list, or a list containing only `"*"` |
 | `actions` | Non-empty subset of `added`, `modified`, and `deleted` |
 | `messages` | Source-language, target-language, and merged delivery message names |
-| `delivery.quiet_seconds` | Required inactivity before automatic delivery, from 0 to 86400 seconds |
-| `delivery.max_wait_seconds` | Maximum wait from the oldest item, from 0 to 604800 seconds and not less than `quiet_seconds` |
+| `delivery.quiet_seconds` | Non-negative inactivity before automatic delivery |
+| `delivery.max_wait_seconds` | Non-negative maximum wait from the oldest item; not less than `quiet_seconds` |
 | `delivery.fold_changes` | Whether to fold queued changes for each locale and key into their net result |
-| `delivery.merge_threshold` | Locale batch threshold; `null` disables merging and `0` merges every non-empty batch, otherwise 0–100 |
+| `delivery.merge_threshold` | Non-negative locale batch threshold; `null` disables merging and `0` merges every non-empty batch |
 | `notify_baseline` | Whether to send the route's baseline and subscription summary |
 
 All listed fields are required. At least one monitor and one route per monitor must be configured; validation errors prevent startup. After changing a configured monitor's project, run `sudo noctalia-i18n-watcher reset full --monitor ID` to clear its monitoring state and establish a baseline for the new source.

@@ -75,8 +75,8 @@ Obelusod
 | 字段 | 初始值 | 用途 |
 | --- | --- | --- |
 | `settings.http.proxy_url` | `""` | 带端口的 HTTP(S) 或 SOCKS 代理 URL；空字符串表示直连 |
-| `settings.http.request_timeout` | `30` | 单次 HTTP 请求超时，范围为 0.001–300 秒 |
-| `settings.retention_days` | `180` | 投递回执的保留天数，范围为 1–3650 |
+| `settings.http.request_timeout` | `30` | 大于 0 的有限 HTTP 请求超时秒数 |
+| `settings.retention_days` | `180` | 投递回执的非负保留天数 |
 | `settings.log_level` | `INFO` | `CRITICAL`、`ERROR`、`WARNING`、`INFO`、`DEBUG` 或 `NOTSET` |
 
 每个 `monitors[]` 项包含：
@@ -102,10 +102,10 @@ Obelusod
 | `locales` | locale 列表，或仅包含 `"*"` 的列表 |
 | `actions` | `added`、`modified`、`deleted` 的非空子集 |
 | `messages` | 选择原文语言、目标语言和合并投递文案 |
-| `delivery.quiet_seconds` | 自动投递前需要连续无新变更的秒数，范围为 0–86400 |
-| `delivery.max_wait_seconds` | 最早记录的最长等待秒数，范围为 0–604800，且不小于 `quiet_seconds` |
+| `delivery.quiet_seconds` | 自动投递前连续无新变更的非负秒数 |
+| `delivery.max_wait_seconds` | 最早记录的非负最长等待秒数，且不小于 `quiet_seconds` |
 | `delivery.fold_changes` | 是否将同一 locale 和键的待投递变更折叠为净结果 |
-| `delivery.merge_threshold` | locale 批次合并阈值；`null` 禁用合并，`0` 合并任意非空批次，否则范围为 0–100 |
+| `delivery.merge_threshold` | 非负 locale 批次合并阈值；`null` 禁用合并，`0` 合并任意非空批次 |
 | `notify_baseline` | 是否发送路由的基线与订阅摘要 |
 
 所有列出的字段均须填写。至少配置一个监听器，且每个监听器至少包含一条路由；校验错误会阻止启动。修改已有监听器的项目后，运行 `sudo noctalia-i18n-watcher reset full --monitor ID` 清空其监听状态，并为新数据源建立基线。

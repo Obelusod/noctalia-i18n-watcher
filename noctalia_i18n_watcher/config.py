@@ -13,13 +13,12 @@ from urllib.parse import urlparse
 
 from noctalia_i18n_core import SOURCE_LOCALE, Action, DeliveryPolicy
 
-_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _PROJECT_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"})
 _PROXY_SCHEMES = frozenset({"http", "https", "socks4", "socks4a", "socks5", "socks5h"})
 _WEBHOOK_HOSTS = frozenset({"discord.com", "canary.discord.com", "ptb.discord.com"})
 _WEBHOOK_PATH = re.compile(r"^/api(?:/v\d+)?/webhooks/[^/]+/[^/]+$")
-_USERNAME_MAX = 80
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,8 +141,6 @@ def _number(
     value: object,
     label: str,
     *,
-    minimum: float,
-    maximum: float,
     integer: bool = False,
 ) -> int | float:
     expected = int if integer else (int, float)
@@ -155,17 +152,21 @@ def _number(
         finite = False
     if not finite:
         raise ValueError(f"{label} must be finite")
-    if value < minimum or value > maximum:
-        raise ValueError(f"{label} must be between {minimum} and {maximum}")
     return value
 
 
-def _integer(value: object, label: str, minimum: int, maximum: int) -> int:
-    return int(_number(value, label, minimum=minimum, maximum=maximum, integer=True))
+def _non_negative_integer(value: object, label: str) -> int:
+    number = _number(value, label, integer=True)
+    if number < 0:
+        raise ValueError(f"{label} must be non-negative")
+    return int(number)
 
 
-def _float(value: object, label: str, minimum: float, maximum: float) -> float:
-    return float(_number(value, label, minimum=minimum, maximum=maximum))
+def _positive_float(value: object, label: str) -> float:
+    number = _number(value, label)
+    if number <= 0:
+        raise ValueError(f"{label} must be positive")
+    return float(number)
 
 
 def _proxy_url(value: object, label: str) -> str:
@@ -271,21 +272,17 @@ def _delivery(value: object, label: str) -> DeliveryPolicy:
     merge_threshold = (
         None
         if threshold is None
-        else _integer(threshold, f"{label}.merge_threshold", 0, 100)
+        else _non_negative_integer(threshold, f"{label}.merge_threshold")
     )
     try:
         return DeliveryPolicy(
-            quiet_seconds=_integer(
+            quiet_seconds=_non_negative_integer(
                 raw["quiet_seconds"],
                 f"{label}.quiet_seconds",
-                0,
-                86400,
             ),
-            max_wait_seconds=_integer(
+            max_wait_seconds=_non_negative_integer(
                 raw["max_wait_seconds"],
                 f"{label}.max_wait_seconds",
-                0,
-                604800,
             ),
             fold_changes=_boolean(
                 raw["fold_changes"],
@@ -308,17 +305,13 @@ def _settings(raw: dict[str, object]) -> Settings:
 
     return Settings(
         proxy_url=_proxy_url(http["proxy_url"], "settings.http.proxy_url"),
-        request_timeout=_float(
+        request_timeout=_positive_float(
             http["request_timeout"],
             "settings.http.request_timeout",
-            0.001,
-            300,
         ),
-        retention_days=_integer(
+        retention_days=_non_negative_integer(
             raw["retention_days"],
             "settings.retention_days",
-            1,
-            3650,
         ),
         log_level=log_level,
     )
@@ -346,8 +339,6 @@ def _webhook(raw: dict[str, object], label: str) -> WebhookConfig:
     route_id = _name(raw["id"], f"{label}.id")
     url = _webhook_url(raw["url"], f"{label}.url")
     username = _string(raw["username"], f"{label}.username", allow_empty=True)
-    if len(username) > _USERNAME_MAX:
-        raise ValueError(f"{label}.username must not exceed {_USERNAME_MAX} characters")
     avatar_url = _avatar_url(raw["avatar_url"], f"{label}.avatar_url")
 
     raw_locales = _unique_strings(raw["locales"], f"{label}.locales")
