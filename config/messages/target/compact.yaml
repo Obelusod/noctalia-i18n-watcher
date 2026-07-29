@@ -4,7 +4,7 @@ diff:
 added:
   title: "[{locale}] Added 1 translation"
   description: |-
-    {key_link}
+    **{key_link}**
     ```ansi
     + {new_diff}
     ```
@@ -21,7 +21,7 @@ modified:
 deleted:
   title: "[{locale}] Deleted 1 translation"
   description: |-
-    {key_link}
+    **{key_link}**
     ```ansi
     − {old_diff}
     ```

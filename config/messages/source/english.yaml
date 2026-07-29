@@ -11,7 +11,7 @@ added:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: KEY
-      value: "{key_link}"
+      value: "**{key_link}**"
       inline: false
     - name: CHANGE
       value: |-
@@ -29,7 +29,7 @@ modified:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: KEY
-      value: "{key_link}"
+      value: "**{key_link}**"
       inline: false
     - name: CHANGE
       value: |-
@@ -48,7 +48,7 @@ deleted:
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   fields:
     - name: KEY
-      value: "{key_link}"
+      value: "**{key_link}**"
       inline: false
     - name: CHANGE
       value: |-

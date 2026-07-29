@@ -99,8 +99,8 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(
             field.get("value"),
             (
-                "[settings.example]"
-                "(https://i18n.noctalia.dev/projects/noctalia/translate)"
+                "**[`settings.example`]"
+                "(https://i18n.noctalia.dev/projects/noctalia/translate)**"
             ),
         )
         with closing(SQLiteState(database, read_only=True)) as state:
