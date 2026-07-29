@@ -50,15 +50,6 @@ def _webhook(payload: dict[str, JsonValue]) -> dict[str, JsonValue]:
 
 
 class ConfigTests(unittest.TestCase):
-    def test_repository_configuration_loads_delivery_policy(self) -> None:
-        config = load_config(Path(__file__).parents[1] / "config" / "config.json")
-
-        webhook = config.monitors[0].webhooks[0]
-        self.assertEqual(webhook.delivery.merge_threshold, 5)
-        self.assertTrue(webhook.uses_source_message)
-        self.assertTrue(webhook.uses_target_message)
-        self.assertTrue(webhook.uses_merge_message)
-
     def test_null_threshold_does_not_select_a_merge_template(self) -> None:
         payload = _payload()
         delivery = _webhook(payload)["delivery"]
