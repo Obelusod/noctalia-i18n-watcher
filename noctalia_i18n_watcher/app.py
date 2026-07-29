@@ -7,6 +7,7 @@ import os
 from collections.abc import Generator, Mapping, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 import requests
@@ -252,7 +253,9 @@ class Application:
                         else None
                     ),
                     baseline_renderer=(
-                        baseline_embed if webhook.notify_baseline else None
+                        partial(baseline_embed, config, webhook)
+                        if webhook.notify_baseline
+                        else None
                     ),
                     username=webhook.username,
                     avatar_url=webhook.avatar_url,
@@ -277,13 +280,7 @@ class Application:
         with closing(self._session()) as session:
             sender = self._sender(config, session)
             for webhook in config.webhooks:
-                send_status(
-                    sender,
-                    webhook.id,
-                    summary,
-                    username=webhook.username,
-                    avatar_url=webhook.avatar_url,
-                )
+                send_status(sender, config, webhook, summary)
 
     def _database(self, monitor_id: str) -> Path:
         return self._paths.state / f"{monitor_id}.sqlite3"
