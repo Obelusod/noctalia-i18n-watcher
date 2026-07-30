@@ -13,6 +13,7 @@ from noctalia_i18n_core import ResetMode
 from .app import Application
 
 _LOGGER = logging.getLogger(__name__)
+_EXTERNAL_LOGGERS = ("discord", "urllib3")
 
 
 class _Arguments(argparse.Namespace):
@@ -123,6 +124,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         level=logging.INFO,
         format="%(levelname)s %(message)s",
     )
+    for name in _EXTERNAL_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
     args = _parse_args(argv)
     try:
         application = Application.load()

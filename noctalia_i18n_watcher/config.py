@@ -45,6 +45,7 @@ class WebhookConfig:
     target_message: str
     merge_message: str
     delivery: DeliveryPolicy
+    merge_threshold: int | None
     notify_baseline: bool
 
     @property
@@ -65,7 +66,7 @@ class WebhookConfig:
     def uses_merge_message(self) -> bool:
         """Whether this route has merged delivery enabled."""
 
-        return self.delivery.merge_threshold is not None
+        return self.merge_threshold is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,7 +255,7 @@ def _action(value: str, label: str) -> Action:
             raise ValueError(f"{label} contains unsupported value: {value!r}")
 
 
-def _delivery(value: object, label: str) -> DeliveryPolicy:
+def _delivery(value: object, label: str) -> tuple[DeliveryPolicy, int | None]:
     raw = _object(value, label)
     _exact_keys(
         raw,
@@ -275,20 +276,22 @@ def _delivery(value: object, label: str) -> DeliveryPolicy:
         else _non_negative_integer(threshold, f"{label}.merge_threshold")
     )
     try:
-        return DeliveryPolicy(
-            quiet_seconds=_non_negative_integer(
-                raw["quiet_seconds"],
-                f"{label}.quiet_seconds",
+        return (
+            DeliveryPolicy(
+                quiet_seconds=_non_negative_integer(
+                    raw["quiet_seconds"],
+                    f"{label}.quiet_seconds",
+                ),
+                max_wait_seconds=_non_negative_integer(
+                    raw["max_wait_seconds"],
+                    f"{label}.max_wait_seconds",
+                ),
+                fold_changes=_boolean(
+                    raw["fold_changes"],
+                    f"{label}.fold_changes",
+                ),
             ),
-            max_wait_seconds=_non_negative_integer(
-                raw["max_wait_seconds"],
-                f"{label}.max_wait_seconds",
-            ),
-            fold_changes=_boolean(
-                raw["fold_changes"],
-                f"{label}.fold_changes",
-            ),
-            merge_threshold=merge_threshold,
+            merge_threshold,
         )
     except ValueError as exc:
         raise ValueError(f"{label} is invalid: {exc}") from exc
@@ -358,7 +361,7 @@ def _webhook(raw: dict[str, object], label: str) -> WebhookConfig:
     source_message = _string(raw_messages["source"], f"{message_label}.source")
     target_message = _string(raw_messages["target"], f"{message_label}.target")
     merge_message = _string(raw_messages["merge"], f"{message_label}.merge")
-    delivery = _delivery(raw["delivery"], f"{label}.delivery")
+    delivery, merge_threshold = _delivery(raw["delivery"], f"{label}.delivery")
     notify_baseline = _boolean(raw["notify_baseline"], f"{label}.notify_baseline")
 
     return WebhookConfig(
@@ -372,6 +375,7 @@ def _webhook(raw: dict[str, object], label: str) -> WebhookConfig:
         target_message=target_message,
         merge_message=merge_message,
         delivery=delivery,
+        merge_threshold=merge_threshold,
         notify_baseline=notify_baseline,
     )
 

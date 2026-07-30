@@ -9,31 +9,49 @@ from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from typing import override
 
 import requests
 from noctalia_i18n_core import (
     Change,
-    DiscordNotifier,
-    DiscordRoute,
-    DiscordWebhookSender,
-    JsonValue,
     Monitor,
-    MonitorPreview,
+    MonitorResult,
     NoctaliaSource,
     ResetMode,
     SQLiteState,
     StateSummary,
-    load_merge,
-    load_message,
 )
 
 from .config import Config, MonitorConfig, load_config
-from .discord import baseline_embed, send_status
+from .discord import (
+    DiscordNotifier,
+    DiscordRoute,
+    DiscordWebhookClient,
+    baseline_embed,
+    send_status,
+)
+from .messages import load_merge, load_message
 
 _LOGGER = logging.getLogger(__name__)
 _CONFIG_DIR = Path("/etc/noctalia-i18n-watcher")
 _STATE_DIR = Path("/var/lib/noctalia-i18n-watcher")
-type Preview = tuple[dict[str, JsonValue], ...]
+type Preview = tuple[dict[str, object], ...]
+
+
+class _Session(requests.Session):
+    def __init__(self, timeout: float) -> None:
+        super().__init__()
+        self._timeout = timeout
+
+    @override
+    def send(
+        self,
+        request: requests.PreparedRequest,
+        **kwargs: object,
+    ) -> requests.Response:
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._timeout
+        return super().send(request, **kwargs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,8 +98,12 @@ class Application:
         for config in self._selected(monitor_id):
             _LOGGER.info("Running monitor %s", config.id)
             try:
-                with self._monitor(config) as monitor:
-                    monitor.run(flush=flush)
+                with self._runtime(config) as (monitor, state, notifier):
+                    self._deliver(
+                        monitor.run(flush=flush),
+                        state,
+                        notifier,
+                    )
             except (ValueError, RuntimeError) as exc:
                 failures.append((config.id, exc))
         self._raise_failures("Run", failures)
@@ -89,12 +111,22 @@ class Application:
     def preview(self, monitor_id: str | None = None) -> Preview:
         """Return rendered changes without sending or changing state."""
 
-        output: list[dict[str, JsonValue]] = []
+        output: list[dict[str, object]] = []
         failures: list[tuple[str, ValueError | RuntimeError]] = []
         for config in self._selected(monitor_id):
             try:
-                with self._monitor(config, read_only=True) as monitor:
-                    output.extend(self._preview(config.id, monitor.preview()))
+                with self._runtime(config, read_only=True) as (
+                    monitor,
+                    _,
+                    notifier,
+                ):
+                    output.extend(
+                        self._preview(
+                            config.id,
+                            monitor.preview(flush=True),
+                            notifier,
+                        )
+                    )
             except (ValueError, RuntimeError) as exc:
                 failures.append((config.id, exc))
         self._raise_failures("Preview", failures)
@@ -113,8 +145,12 @@ class Application:
         for config in self._selected(monitor_id):
             _LOGGER.info("Resetting monitor %s", config.id)
             try:
-                with self._monitor(config) as monitor:
-                    monitor.reset(mode, notify=notify)
+                with self._runtime(config) as (monitor, state, notifier):
+                    self._deliver(
+                        monitor.reset(mode, notify=notify),
+                        state,
+                        notifier,
+                    )
             except (ValueError, RuntimeError) as exc:
                 failures.append((config.id, exc))
         self._raise_failures("Reset", failures)
@@ -146,7 +182,7 @@ class Application:
         failures: list[tuple[str, ValueError | RuntimeError]] = []
         for config in self._selected(monitor_id):
             try:
-                with self._monitor(config, read_only=True):
+                with self._runtime(config, read_only=True):
                     pass
             except (ValueError, RuntimeError) as exc:
                 failures.append((config.id, exc))
@@ -160,25 +196,29 @@ class Application:
             return self._source(config, session).history(page)
 
     @contextmanager
-    def _monitor(
+    def _runtime(
         self, config: MonitorConfig, *, read_only: bool = False
-    ) -> Generator[Monitor, None, None]:
+    ) -> Generator[tuple[Monitor, SQLiteState, DiscordNotifier], None, None]:
         with (
             closing(self._session()) as session,
             closing(
                 SQLiteState(self._database(config.id), read_only=read_only)
             ) as state,
         ):
-            sender = self._sender(config, session)
-            yield Monitor(
-                self._source(config, session),
+            notifier = self._notifier(config, self._client(config, session))
+            yield (
+                Monitor(
+                    self._source(config, session),
+                    state,
+                    notifier.routes,
+                    retention_days=self._config.settings.retention_days,
+                ),
                 state,
-                self._notifier(config, sender),
-                retention_days=self._config.settings.retention_days,
+                notifier,
             )
 
     def _session(self) -> requests.Session:
-        session = requests.Session()
+        session = _Session(self._config.settings.request_timeout)
         session.trust_env = False
         if proxy_url := self._config.settings.proxy_url:
             session.proxies.update({"http": proxy_url, "https": proxy_url})
@@ -198,7 +238,7 @@ class Application:
     def _notifier(
         self,
         config: MonitorConfig,
-        sender: DiscordWebhookSender,
+        client: DiscordWebhookClient,
     ) -> DiscordNotifier:
         source_names = {
             webhook.source_message
@@ -215,15 +255,15 @@ class Application:
             for webhook in config.webhooks
             if webhook.uses_merge_message
         }
-        source_messages = {
+        source_templates = {
             name: load_message(name, self._paths.messages / "source")
             for name in sorted(source_names)
         }
-        target_messages = {
+        target_templates = {
             name: load_message(name, self._paths.messages / "target")
             for name in sorted(target_names)
         }
-        merge_messages = {
+        merge_templates = {
             name: load_merge(name, self._paths.messages / "merge")
             for name in sorted(merge_names)
         }
@@ -231,24 +271,24 @@ class Application:
             tuple(
                 DiscordRoute(
                     id=webhook.id,
-                    target_ref=webhook.id,
                     monitor_id=config.id,
                     project=config.project,
                     locales=webhook.locales,
                     actions=webhook.actions,
                     delivery=webhook.delivery,
-                    source_renderer=(
-                        source_messages[webhook.source_message]
+                    merge_threshold=webhook.merge_threshold,
+                    source_template=(
+                        source_templates[webhook.source_message]
                         if webhook.uses_source_message
                         else None
                     ),
-                    target_renderer=(
-                        target_messages[webhook.target_message]
+                    target_template=(
+                        target_templates[webhook.target_message]
                         if webhook.uses_target_message
                         else None
                     ),
-                    merge_renderer=(
-                        merge_messages[webhook.merge_message]
+                    merge_template=(
+                        merge_templates[webhook.merge_message]
                         if webhook.uses_merge_message
                         else None
                     ),
@@ -262,25 +302,24 @@ class Application:
                 )
                 for webhook in config.webhooks
             ),
-            sender,
+            client,
         )
 
-    def _sender(
-        self,
+    @staticmethod
+    def _client(
         config: MonitorConfig,
         session: requests.Session,
-    ) -> DiscordWebhookSender:
-        return DiscordWebhookSender(
+    ) -> DiscordWebhookClient:
+        return DiscordWebhookClient(
             session,
             {webhook.id: webhook.url for webhook in config.webhooks},
-            self._config.settings.request_timeout,
         )
 
     def _send_status(self, config: MonitorConfig, summary: StateSummary) -> None:
         with closing(self._session()) as session:
-            sender = self._sender(config, session)
+            client = self._client(config, session)
             for webhook in config.webhooks:
-                send_status(sender, config, webhook, summary)
+                send_status(client, config, webhook, summary)
 
     def _database(self, monitor_id: str) -> Path:
         return self._paths.state / f"{monitor_id}.sqlite3"
@@ -304,7 +343,11 @@ class Application:
         return selected[0]
 
     @staticmethod
-    def _preview(monitor_id: str, preview: MonitorPreview) -> Preview:
+    def _preview(
+        monitor_id: str,
+        preview: MonitorResult,
+        notifier: DiscordNotifier,
+    ) -> Preview:
         if preview.baseline:
             return (
                 {
@@ -317,11 +360,34 @@ class Application:
         return tuple(
             {
                 "monitor_id": monitor_id,
-                "route_id": notification.route_id,
-                "embed": notification.content,
+                "route_id": route_id,
+                "embed": embed.to_dict(),
             }
-            for notification in preview.notifications
+            for route_id, deliveries in preview.deliveries.items()
+            for embed in notifier.render(route_id, deliveries)
         )
+
+    @staticmethod
+    def _deliver(
+        result: MonitorResult,
+        state: SQLiteState,
+        notifier: DiscordNotifier,
+    ) -> None:
+        for route_id in result.baseline_routes:
+            notifier.send_baseline(route_id, result.scanned, result.source_texts)
+            state.acknowledge_baseline(route_id)
+        for route_id, deliveries in result.deliveries.items():
+            notifier.send(
+                route_id,
+                deliveries,
+                partial(state.acknowledge, route_id),
+            )
+            _LOGGER.info(
+                "Delivered %d %s to route %s",
+                len(deliveries),
+                "change" if len(deliveries) == 1 else "changes",
+                route_id,
+            )
 
     @staticmethod
     def _raise_failures(
