@@ -20,7 +20,7 @@ By default, the application monitors `noctalia`. Other projects such as `officia
 
 ## Message format
 
-The default detailed messages use green, yellow, and red for additions, modifications, and deletions. Merged messages highlight changed tokens with bold red and green ANSI text. Detailed source and target messages link editor profiles when available; Discord localizes timestamps.
+The default detailed messages use green, yellow, and red for additions, modifications, and deletions. Merged messages highlight changed tokens with bold red and green ANSI text. Detailed messages link each key to its change detail and editor names to profiles when available; Discord localizes timestamps.
 
 | Scope | Messages | Layout |
 | --- | --- | --- |
@@ -61,7 +61,9 @@ Today at 5:51 PM
 │   ├── app.py                # Application operations and composition
 │   ├── cli.py                # Program entry and command-line handling
 │   ├── config.py             # Configuration loading/validation
-│   └── discord.py            # Discord integration
+│   ├── diff.py               # Multilingual ANSI differences
+│   ├── discord.py            # Discord routing and delivery
+│   └── messages.py           # YAML message loading and rendering
 ├── scripts/                  # Deployment and management scripts
 ├── systemd/                  # systemd scheduling
 ├── tests/                    # Automated tests
@@ -311,7 +313,7 @@ uv run --no-sync python -m unittest discover -v
 uv run --no-sync python -m unittest tests.test_app -v
 ```
 
-The default suite verifies application configuration, composition, CLI behavior, and status messages without accessing external services.
+The default suite verifies configuration, application composition, CLI behavior, message rendering, and Discord delivery contracts without accessing external services.
 
 Explicitly verify a source against its live upstream:
 

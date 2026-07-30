@@ -20,7 +20,7 @@ Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/p
 
 ## 消息格式
 
-默认详细文案使用绿色、黄色和红色区分新增、修改和删除。合并文案使用红色和绿色 ANSI 粗体标记实际差异。详细原文语言和目标语言文案会在有编辑者主页时显示链接；时间由 Discord 本地化显示。
+默认详细文案使用绿色、黄色和红色区分新增、修改和删除。合并文案使用红色和绿色 ANSI 粗体标记实际差异。详细文案会将每个键链接到变更详情，并在有编辑者主页时链接编辑者名称；时间由 Discord 本地化显示。
 
 | 范围 | 文案 | 布局 |
 | --- | --- | --- |
@@ -61,7 +61,9 @@ Obelusod
 │   ├── app.py                # 应用操作与组件装配
 │   ├── cli.py                # 程序入口与命令行处理
 │   ├── config.py             # 配置加载/校验
-│   └── discord.py            # Discord 集成
+│   ├── diff.py               # 多语言 ANSI 差异
+│   ├── discord.py            # Discord 路由与投递
+│   └── messages.py           # YAML 文案加载与渲染
 ├── scripts/                  # 部署与管理脚本
 ├── systemd/                  # systemd 定时调度
 ├── tests/                    # 自动化测试
@@ -311,7 +313,7 @@ uv run --no-sync python -m unittest discover -v
 uv run --no-sync python -m unittest tests.test_app -v
 ```
 
-默认测试验证应用配置、装配、CLI 和状态消息，不访问外部服务。
+默认测试验证配置、应用装配、CLI、文案渲染和 Discord 投递契约，不访问外部服务。
 
 显式检查数据源与实时上游的契约：
 
