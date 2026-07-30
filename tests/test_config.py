@@ -62,7 +62,7 @@ class ConfigTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             webhook = load_config(path).monitors[0].webhooks[0]
 
-        self.assertIsNone(webhook.delivery.merge_threshold)
+        self.assertIsNone(webhook.merge_threshold)
         self.assertFalse(webhook.uses_merge_message)
 
     def test_locale_identifiers_are_opaque(self) -> None:

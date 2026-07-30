@@ -7,9 +7,10 @@ import unittest
 from pathlib import Path
 
 import requests
-from noctalia_i18n_core import DiscordWebhookSender
+from discord import Embed
 
 from noctalia_i18n_watcher.app import Application, RuntimePaths
+from noctalia_i18n_watcher.discord import DiscordWebhookClient
 
 
 class LiveSourceTests(unittest.TestCase):
@@ -31,10 +32,7 @@ class LiveDiscordTests(unittest.TestCase):
         session = requests.Session()
         self.addCleanup(session.close)
 
-        DiscordWebhookSender(session, {"test": url}, 30).send(
+        DiscordWebhookClient(session, {"test": url}).send(
             "test",
-            {
-                "allowed_mentions": {"parse": []},
-                "content": "Noctalia i18n watcher live transport check.",
-            },
+            embeds=(Embed(description="Noctalia i18n watcher live transport check."),),
         )
