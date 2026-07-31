@@ -51,6 +51,7 @@ class _MergeValues(TypedDict):
     count: int
     actors: str
     actor_count: int
+    actor_url: str | None
     actor_avatar_url: str | None
     added_count: int
     modified_count: int
@@ -337,6 +338,15 @@ class MergeTemplate:
             entries.append(rendered)
 
         actors = tuple(dict.fromkeys(item["actor"] for item in values))
+        single_actor = len(actors) == 1
+        actor_url = (
+            next(
+                (item["actor_url"] for item in reversed(values) if item["actor_url"]),
+                None,
+            )
+            if single_actor
+            else None
+        )
         actor_avatar_url = (
             next(
                 (
@@ -346,7 +356,7 @@ class MergeTemplate:
                 ),
                 None,
             )
-            if len(actors) == 1
+            if single_actor
             else None
         )
         first, last = values[0], values[-1]
@@ -357,6 +367,7 @@ class MergeTemplate:
             "count": len(values),
             "actors": ", ".join(actors),
             "actor_count": len(actors),
+            "actor_url": actor_url,
             "actor_avatar_url": actor_avatar_url,
             "added_count": sum(item["action"] == "added" for item in values),
             "modified_count": sum(item["action"] == "modified" for item in values),

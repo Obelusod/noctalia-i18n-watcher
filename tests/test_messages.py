@@ -94,6 +94,30 @@ class MessageTests(unittest.TestCase):
 
         self.assertEqual([page.count for page in pages], [1, 1])
 
+    def test_merged_author_links_a_single_actor_only(self) -> None:
+        directory = Path(__file__).parents[1] / "config" / "messages" / "merge"
+        merge = load_merge("english", directory)
+
+        single = _values("first", "a")
+        single["actor_url"] = "https://github.com/translator"
+        single["actor_avatar_url"] = "https://github.com/translator.png"
+        page = merge.render((single,))[0]
+        self.assertEqual(page.embed.author.url, "https://github.com/translator")
+        self.assertEqual(
+            page.embed.author.icon_url,
+            "https://github.com/translator.png",
+        )
+
+        first = _values("first", "a")
+        second = _values("second", "b")
+        second["actor"] = "editor"
+        page = merge.render((first, second))[0]
+        self.assertIsNone(page.embed.author.url)
+        self.assertEqual(
+            page.embed.author.icon_url,
+            "https://github.com/noctalia-dev.png",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

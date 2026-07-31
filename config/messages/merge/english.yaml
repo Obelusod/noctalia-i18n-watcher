@@ -4,6 +4,7 @@ source:
   color: 0x5865F2
   author:
     name: "{actors}"
+    url: "{actor_url}"
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   description: "{entries}"
   footer:
@@ -14,6 +15,7 @@ target:
   color: 0x5865F2
   author:
     name: "{actors}"
+    url: "{actor_url}"
     icon_url: "{actor_avatar_url:fallback=https://github.com/noctalia-dev.png}"
   description: "{entries}"
   footer:
