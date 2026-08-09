@@ -1,6 +1,6 @@
 # Noctalia i18n Watcher
 
-[简体中文](README.zh-CN.md)
+[简体中文](https://github.com/Obelusod/noctalia-i18n-watcher/blob/main/README.zh-CN.md)
 
 Noctalia i18n Watcher is an unofficial change monitor for localization projects on [Noctalia Translate](https://i18n.noctalia.dev/projects). It supports delivering additions, modifications, and deletions of source text and translations to independent Discord webhook routes.
 
@@ -57,8 +57,8 @@ Today at 5:51 PM
 │       └── merge/            # Merged delivery messages
 ├── noctalia_i18n_watcher/    # Application source
 │   ├── app.py                # Application operations and composition
-│   ├── cli.py                # Program entry and command-line handling
-│   ├── config.py             # Configuration loading/validation
+│   ├── cli.py                # Command-line interface
+│   ├── config.py             # Configuration loading and validation
 │   ├── diff.py               # Multilingual ANSI differences
 │   ├── discord.py            # Discord routing and delivery
 │   ├── messages.py           # YAML message loading and rendering
@@ -299,18 +299,17 @@ Changes load on the next run; edit the schedule under [Check interval](#check-in
 
 ## Development
 
-Python 3.12 or later and uv are required. Create the development environment:
+Install the locked development environment:
 
 ```bash
-uv venv
-uv pip install --editable . --group dev
+uv sync --locked
 ```
 
 Run the complete test suite, or target one module while developing:
 
 ```bash
-uv run --no-sync python -m unittest discover -v
-uv run --no-sync python -m unittest tests.test_app -v
+uv run python -m unittest discover -v
+uv run python -m unittest tests.test_app -v
 ```
 
 The default suite verifies configuration, application composition, CLI behavior, message rendering, and Discord delivery contracts without accessing external services.
@@ -319,20 +318,25 @@ Explicitly verify a source against its live upstream:
 
 ```bash
 NOCTALIA_LIVE_CONFIG=config/config.json \
-  uv run --no-sync python -m unittest tests.live.LiveSourceTests -v
+  uv run python -m unittest tests.live.LiveSourceTests -v
 ```
 
 Send one real test notification through a temporary Discord webhook:
 
 ```bash
 NOCTALIA_TEST_WEBHOOK_URL='https://discord.com/api/webhooks/...' \
-  uv run --no-sync python -m unittest tests.live.LiveDiscordTests -v
+  uv run python -m unittest tests.live.LiveDiscordTests -v
 ```
 
 Check formatting, lint rules, and static types:
 
 ```bash
-uv run --no-sync ruff format --check .
-uv run --no-sync ruff check .
-uv run --no-sync basedpyright
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+bash -n scripts/*.sh
 ```
+
+## License
+
+[MIT](LICENSE)

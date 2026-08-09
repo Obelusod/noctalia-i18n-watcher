@@ -1,6 +1,6 @@
 # Noctalia i18n Watcher
 
-[English](README.md)
+[English](https://github.com/Obelusod/noctalia-i18n-watcher/blob/main/README.md)
 
 Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/projects) 本地化项目的非官方变更监控工具，支持将原文和译文的新增、修改、删除投递到多个独立 Discord Webhook 路由。
 
@@ -57,8 +57,8 @@ Obelusod
 │       └── merge/            # 合并投递文案
 ├── noctalia_i18n_watcher/    # 程序源码
 │   ├── app.py                # 应用操作与组件装配
-│   ├── cli.py                # 程序入口与命令行处理
-│   ├── config.py             # 配置加载/校验
+│   ├── cli.py                # 命令行接口
+│   ├── config.py             # 配置加载与校验
 │   ├── diff.py               # 多语言 ANSI 差异
 │   ├── discord.py            # Discord 路由与投递
 │   ├── messages.py           # YAML 文案加载与渲染
@@ -299,18 +299,17 @@ sudo noctalia-i18n-watcher validate
 
 ## 开发
 
-需要 Python 3.12 或更高版本和 uv。创建开发环境：
+安装锁定的开发环境：
 
 ```bash
-uv venv
-uv pip install --editable . --group dev
+uv sync --locked
 ```
 
 运行全部测试，或在开发时仅运行一个模块：
 
 ```bash
-uv run --no-sync python -m unittest discover -v
-uv run --no-sync python -m unittest tests.test_app -v
+uv run python -m unittest discover -v
+uv run python -m unittest tests.test_app -v
 ```
 
 默认测试验证配置、应用装配、CLI、文案渲染和 Discord 投递契约，不访问外部服务。
@@ -319,20 +318,25 @@ uv run --no-sync python -m unittest tests.test_app -v
 
 ```bash
 NOCTALIA_LIVE_CONFIG=config/config.json \
-  uv run --no-sync python -m unittest tests.live.LiveSourceTests -v
+  uv run python -m unittest tests.live.LiveSourceTests -v
 ```
 
 使用临时 Webhook 向 Discord 发送一条真实测试消息：
 
 ```bash
 NOCTALIA_TEST_WEBHOOK_URL='https://discord.com/api/webhooks/...' \
-  uv run --no-sync python -m unittest tests.live.LiveDiscordTests -v
+  uv run python -m unittest tests.live.LiveDiscordTests -v
 ```
 
 检查格式、代码规则和静态类型：
 
 ```bash
-uv run --no-sync ruff format --check .
-uv run --no-sync ruff check .
-uv run --no-sync basedpyright
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+bash -n scripts/*.sh
 ```
+
+## 许可证
+
+[MIT](LICENSE)
