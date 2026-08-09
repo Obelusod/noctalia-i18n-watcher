@@ -5,6 +5,7 @@ description = "Discord change monitor for localization projects on Noctalia Tran
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Obelus" }]
 dependencies = [
   "discord.py==2.7.1",
@@ -13,8 +14,13 @@ dependencies = [
   "requests[socks]==2.34.2",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Obelusod/noctalia-i18n-watcher"
+Issues = "https://github.com/Obelusod/noctalia-i18n-watcher/issues"
+Source = "https://github.com/Obelusod/noctalia-i18n-watcher"
+
 [build-system]
-requires = ["hatchling==1.31.0"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
@@ -44,13 +50,13 @@ packages = ["noctalia_i18n_watcher"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/LICENSE",
-  "/README.md",
-  "/README.zh-CN.md",
-  "/config",
-  "/noctalia_i18n_watcher",
-  "/pyproject.toml",
-  "/scripts",
-  "/systemd",
-  "/tests",
+  "LICENSE",
+  "README.md",
+  "README.zh-CN.md",
+  "config",
+  "noctalia_i18n_watcher",
+  "pyproject.toml",
+  "scripts",
+  "systemd",
+  "tests",
 ]
