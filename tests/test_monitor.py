@@ -258,7 +258,3 @@ class MonitorTests(unittest.TestCase):
             self.assertFalse(state.pending("route"))
 
         self.assertEqual(len(result.deliveries["route"]), 1)
-
-
-if __name__ == "__main__":
-    unittest.main()

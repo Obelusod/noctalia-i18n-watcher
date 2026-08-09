@@ -117,7 +117,3 @@ class MessageTests(unittest.TestCase):
             page.embed.author.icon_url,
             "https://github.com/noctalia-dev.png",
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -144,7 +144,3 @@ class StateTests(unittest.TestCase):
             state.prune(1)
 
             self.assertEqual(state.summary().delivery_receipts, 0)
-
-
-if __name__ == "__main__":
-    unittest.main()

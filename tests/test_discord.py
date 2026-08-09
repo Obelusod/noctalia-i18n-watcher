@@ -231,7 +231,3 @@ class DiscordTests(unittest.TestCase):
         self.assertIn("key.0", str(embeds[0].to_dict()))
         self.assertIn("key.2", str(embeds[0].to_dict()))
         self.assertIn("key.1", str(embeds[1].to_dict()))
-
-
-if __name__ == "__main__":
-    unittest.main()

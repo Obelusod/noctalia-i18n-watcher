@@ -246,7 +246,3 @@ class ApplicationTests(unittest.TestCase):
             actual = Application.load(self._paths).history(2)
 
         self.assertEqual(actual, ())
-
-
-if __name__ == "__main__":
-    unittest.main()
