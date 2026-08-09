@@ -8,17 +8,12 @@ from typing import Protocol, TypedDict
 
 import requests
 from discord import AllowedMentions, Embed, HTTPException, SyncWebhook
-from noctalia_i18n_core import (
-    SOURCE_LOCALE,
-    Action,
-    Change,
-    Delivery,
-    DeliveryPolicy,
-    StateSummary,
-)
+from noctalia_i18n_core import SOURCE_LOCALE, Change, ChangeAction
 
 from .config import MonitorConfig, WebhookConfig
 from .messages import MergePage, MergeTemplate, MessageTemplate, MessageValues
+from .monitor import Delivery, DeliveryPolicy, iso_timestamp
+from .state import StateSummary
 
 _BASELINE_COLOR = 0x5865F2
 _STATUS_COLOR = 0x57F287
@@ -108,7 +103,7 @@ class DiscordRoute:
     monitor_id: str
     project: str
     locales: frozenset[str]
-    actions: frozenset[Action]
+    actions: frozenset[ChangeAction]
     delivery: DeliveryPolicy
     merge_threshold: int | None
     source_template: MessageTemplate | None
@@ -130,7 +125,11 @@ class DiscordRoute:
 
     def render(self, delivery: Delivery) -> Embed:
         change = delivery.change
-        template = self.source_template if change.is_source else self.target_template
+        template = (
+            self.source_template
+            if change.locale == SOURCE_LOCALE
+            else self.target_template
+        )
         if template is None:
             raise RuntimeError(f"Route {self.id!r} cannot render {change.locale!r}")
         return template.render(change.action, self._values(delivery))
@@ -152,12 +151,12 @@ class DiscordRoute:
             old_value=change.old_value,
             new_value=change.new_value,
             locale=change.locale,
-            actor=change.actor,
+            actor=change.actor_login or "API",
             actor_url=change.actor_url,
             actor_avatar_url=change.actor_avatar_url,
             action=change.action,
-            change_url=change.url,
-            timestamp=change.iso_timestamp,
+            change_url=change.translation_url,
+            timestamp=iso_timestamp(change.occurred_at),
             unix_time=int(change.occurred_at.timestamp()),
         )
 

@@ -7,9 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from noctalia_i18n_core import JsonValue
-
 from noctalia_i18n_watcher.config import load_config
+
+type JsonValue = (
+    None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+)
 
 
 def _payload() -> dict[str, JsonValue]:

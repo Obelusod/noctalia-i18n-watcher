@@ -8,9 +8,10 @@ import logging
 from collections.abc import Sequence
 from dataclasses import asdict
 
-from noctalia_i18n_core import ResetMode
+from noctalia_i18n_core import Change
 
 from .app import Application
+from .monitor import ResetMode, iso_timestamp
 
 _LOGGER = logging.getLogger(__name__)
 _EXTERNAL_LOGGERS = ("discord", "urllib3")
@@ -119,6 +120,22 @@ def _print_json(value: object) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2))
 
 
+def _change_json(change: Change) -> dict[str, object]:
+    return {
+        "id": change.id,
+        "key": change.key,
+        "locale": change.locale,
+        "actor": change.actor_login or "API",
+        "old_value": change.old_value,
+        "new_value": change.new_value,
+        "action": change.action,
+        "occurred_at": iso_timestamp(change.occurred_at),
+        "url": change.translation_url,
+        "actor_url": change.actor_url,
+        "actor_avatar_url": change.actor_avatar_url,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -166,7 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "history":
             _print_json(
                 [
-                    asdict(change) | {"occurred_at": change.iso_timestamp}
+                    _change_json(change)
                     for change in application.history(args.page, args.monitor)
                 ]
             )

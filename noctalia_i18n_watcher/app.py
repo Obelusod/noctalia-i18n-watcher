@@ -12,15 +12,7 @@ from pathlib import Path
 from typing import override
 
 import requests
-from noctalia_i18n_core import (
-    Change,
-    Monitor,
-    MonitorResult,
-    NoctaliaSource,
-    ResetMode,
-    SQLiteState,
-    StateSummary,
-)
+from noctalia_i18n_core import Change, NoctaliaClient
 
 from .config import Config, MonitorConfig, load_config
 from .discord import (
@@ -31,6 +23,8 @@ from .discord import (
     send_status,
 )
 from .messages import load_merge, load_message
+from .monitor import Monitor, MonitorResult, ResetMode
+from .state import SQLiteState, StateSummary
 
 _LOGGER = logging.getLogger(__name__)
 _CONFIG_DIR = Path("/etc/noctalia-i18n-watcher")
@@ -193,7 +187,13 @@ class Application:
 
         config = self._single(monitor_id, "history")
         with closing(self._session()) as session:
-            return self._source(config, session).history(page)
+            client = NoctaliaClient(
+                config.project,
+                timeout=self._config.settings.request_timeout,
+                session=session,
+            )
+            result = next(client.change_pages(start_page=page), None)
+            return () if result is None else result.changes
 
     @contextmanager
     def _runtime(
@@ -205,10 +205,15 @@ class Application:
                 SQLiteState(self._database(config.id), read_only=read_only)
             ) as state,
         ):
-            notifier = self._notifier(config, self._client(config, session))
+            notifier = self._notifier(config, self._discord_client(config, session))
+            client = NoctaliaClient(
+                config.project,
+                timeout=self._config.settings.request_timeout,
+                session=session,
+            )
             yield (
                 Monitor(
-                    self._source(config, session),
+                    client,
                     state,
                     notifier.routes,
                     retention_days=self._config.settings.retention_days,
@@ -223,17 +228,6 @@ class Application:
         if proxy_url := self._config.settings.proxy_url:
             session.proxies.update({"http": proxy_url, "https": proxy_url})
         return session
-
-    def _source(
-        self,
-        config: MonitorConfig,
-        session: requests.Session,
-    ) -> NoctaliaSource:
-        return NoctaliaSource(
-            config.project,
-            self._config.settings.request_timeout,
-            session,
-        )
 
     def _notifier(
         self,
@@ -306,7 +300,7 @@ class Application:
         )
 
     @staticmethod
-    def _client(
+    def _discord_client(
         config: MonitorConfig,
         session: requests.Session,
     ) -> DiscordWebhookClient:
@@ -317,7 +311,7 @@ class Application:
 
     def _send_status(self, config: MonitorConfig, summary: StateSummary) -> None:
         with closing(self._session()) as session:
-            client = self._client(config, session)
+            client = self._discord_client(config, session)
             for webhook in config.webhooks:
                 send_status(client, config, webhook, summary)
 

@@ -11,9 +11,10 @@ from io import StringIO
 from typing import override
 from unittest.mock import MagicMock, patch
 
-from noctalia_i18n_core import StateSummary
+from noctalia_i18n_core import Change
 
 from noctalia_i18n_watcher.cli import main
+from noctalia_i18n_watcher.state import StateSummary
 
 
 class CliTests(unittest.TestCase):
@@ -82,6 +83,50 @@ class CliTests(unittest.TestCase):
         summary = json.loads(output.getvalue())["noctalia"]
         self.assertEqual(summary["updated_at"], updated_at.isoformat())
         self.assertEqual(summary["source_texts"], 1)
+
+    def test_history_preserves_the_command_output_contract(self) -> None:
+        application = MagicMock(log_level="INFO")
+        application.history.return_value = (
+            Change(
+                id="change-1",
+                key="settings.example",
+                locale="en",
+                action="modified",
+                old_value="Old",
+                new_value="New",
+                occurred_at=datetime(2026, 7, 29, 5, 2, 3, 120000, tzinfo=UTC),
+                translation_url="https://i18n.noctalia.dev/change",
+                actor_login=None,
+            ),
+        )
+        with (
+            patch(
+                "noctalia_i18n_watcher.cli.Application.load",
+                return_value=application,
+            ),
+            redirect_stdout(StringIO()) as output,
+        ):
+            result = main(["history", "1"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            json.loads(output.getvalue()),
+            [
+                {
+                    "id": "change-1",
+                    "key": "settings.example",
+                    "locale": "en",
+                    "actor": "API",
+                    "old_value": "Old",
+                    "new_value": "New",
+                    "action": "modified",
+                    "occurred_at": "2026-07-29T05:02:03.120Z",
+                    "url": "https://i18n.noctalia.dev/change",
+                    "actor_url": None,
+                    "actor_avatar_url": None,
+                }
+            ],
+        )
 
     def test_operational_error_is_reported_without_traceback(self) -> None:
         application = MagicMock(log_level="INFO")

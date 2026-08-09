@@ -13,7 +13,7 @@ from typing import Protocol, TypedDict, TypeGuard, override
 
 import yaml
 from discord import Embed
-from noctalia_i18n_core import SOURCE_LOCALE, Action
+from noctalia_i18n_core import SOURCE_LOCALE, ChangeAction
 from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode, Node
 from yaml.resolver import BaseResolver
@@ -38,7 +38,7 @@ class MessageValues(TypedDict):
     actor: str
     actor_url: str | None
     actor_avatar_url: str | None
-    action: Action
+    action: ChangeAction
     change_url: str | None
     timestamp: str
     unix_time: int
@@ -73,7 +73,7 @@ class _TemplateScope:
     fallbackable: frozenset[str]
 
 
-_ACTIONS: tuple[Action, ...] = ("added", "modified", "deleted")
+_ACTIONS: tuple[ChangeAction, ...] = ("added", "modified", "deleted")
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _TRUNCATE_SPEC = re.compile(r"^truncate=([1-9]\d*)$")
 _FALLBACK_SPEC = re.compile(r"^fallback=([^{}]+)$")
@@ -245,10 +245,10 @@ class MessageTemplate:
     """One selectable file containing detailed message templates."""
 
     name: str
-    templates: Mapping[Action, dict[str, _YamlValue]]
+    templates: Mapping[ChangeAction, dict[str, _YamlValue]]
     diff_styles: _DiffStyles | None
 
-    def render(self, action: Action, values: Mapping[str, object]) -> Embed:
+    def render(self, action: ChangeAction, values: Mapping[str, object]) -> Embed:
         """Render one detailed Discord embed."""
 
         try:
@@ -281,7 +281,7 @@ class MergeTemplate:
     name: str
     source: dict[str, _YamlValue]
     target: dict[str, _YamlValue]
-    entries: Mapping[Action, str]
+    entries: Mapping[ChangeAction, str]
     separator: str
     diff_styles: _DiffStyles | None
 
@@ -712,7 +712,7 @@ def _load_message(path: Path, name: str) -> MessageTemplate:
     raw = _read_yaml(path, label)
     actions = frozenset(_ACTIONS)
     _exact_keys(raw, actions | {"diff"}, actions, label)
-    templates: dict[Action, dict[str, _YamlValue]] = {}
+    templates: dict[ChangeAction, dict[str, _YamlValue]] = {}
     for action in _ACTIONS:
         action_label = f"{label} action {action!r}"
         templates[action] = _validate_embed(
@@ -758,7 +758,7 @@ def _load_merge(path: Path, name: str) -> MergeTemplate:
     separator = entries["separator"]
     if not isinstance(separator, str):
         raise ValueError(f"{label}.entries.separator must be a string")
-    templates: dict[Action, str] = {}
+    templates: dict[ChangeAction, str] = {}
     for action in _ACTIONS:
         templates[action] = _text(
             entries[action],

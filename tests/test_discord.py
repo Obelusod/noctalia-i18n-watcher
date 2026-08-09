@@ -11,13 +11,7 @@ from unittest.mock import Mock, patch
 
 import requests
 from discord import Embed
-from noctalia_i18n_core import (
-    Action,
-    Change,
-    Delivery,
-    DeliveryPolicy,
-    StateSummary,
-)
+from noctalia_i18n_core import Change
 
 from noctalia_i18n_watcher.config import MonitorConfig, WebhookConfig
 from noctalia_i18n_watcher.discord import (
@@ -29,6 +23,8 @@ from noctalia_i18n_watcher.discord import (
     status_embed,
 )
 from noctalia_i18n_watcher.messages import load_merge, load_message
+from noctalia_i18n_watcher.monitor import Delivery, DeliveryPolicy
+from noctalia_i18n_watcher.state import StateSummary
 
 
 class _Sender:
@@ -64,7 +60,7 @@ def _webhook() -> WebhookConfig:
         username="Watcher",
         avatar_url="https://example.com/avatar.png",
         locales=frozenset({"en", "zh-Hans"}),
-        actions=frozenset[Action]({"modified"}),
+        actions=frozenset({"modified"}),
         source_message="english",
         target_message="english",
         merge_message="english",
@@ -81,12 +77,12 @@ def _deliveries(count: int) -> tuple[Delivery, ...]:
                 id=f"change-{index}",
                 key=f"key.{index}",
                 locale="zh-Hans",
-                actor="translator",
+                actor_login="fixture",
                 old_value="old",
                 new_value="new",
                 action="modified",
                 occurred_at=datetime(2026, 7, 30, index, tzinfo=UTC),
-                url=None,
+                translation_url="https://i18n.noctalia.dev/projects/noctalia/translate",
             ),
             "English",
         )
@@ -182,7 +178,7 @@ class DiscordTests(unittest.TestCase):
             monitor_id="monitor",
             project="noctalia",
             locales=frozenset({"zh-Hans"}),
-            actions=frozenset[Action]({"modified"}),
+            actions=frozenset({"modified"}),
             delivery=DeliveryPolicy(0, 0, False),
             merge_threshold=None,
             source_template=None,
@@ -213,7 +209,7 @@ class DiscordTests(unittest.TestCase):
             monitor_id="monitor",
             project="noctalia",
             locales=frozenset({"en", "zh-Hans"}),
-            actions=frozenset[Action]({"modified"}),
+            actions=frozenset({"modified"}),
             delivery=DeliveryPolicy(0, 0, False),
             merge_threshold=1,
             source_template=message,

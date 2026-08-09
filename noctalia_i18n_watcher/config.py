@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import TypeGuard
 from urllib.parse import urlparse
 
-from noctalia_i18n_core import SOURCE_LOCALE, Action, DeliveryPolicy
+from noctalia_i18n_core import SOURCE_LOCALE, ChangeAction
+
+from .monitor import DeliveryPolicy
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _PROJECT_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -40,7 +42,7 @@ class WebhookConfig:
     username: str
     avatar_url: str
     locales: frozenset[str]
-    actions: frozenset[Action]
+    actions: frozenset[ChangeAction]
     source_message: str
     target_message: str
     merge_message: str
@@ -243,7 +245,7 @@ def _name(value: object, label: str) -> str:
     return name
 
 
-def _action(value: str, label: str) -> Action:
+def _action(value: str, label: str) -> ChangeAction:
     match value:
         case "added":
             return "added"
@@ -351,7 +353,7 @@ def _webhook(raw: dict[str, object], label: str) -> WebhookConfig:
         )
 
     action_label = f"{label}.actions"
-    actions: frozenset[Action] = frozenset(
+    actions: frozenset[ChangeAction] = frozenset(
         _action(action, action_label)
         for action in _unique_strings(raw["actions"], action_label)
     )
