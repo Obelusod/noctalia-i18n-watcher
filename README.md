@@ -4,8 +4,6 @@
 
 Noctalia i18n Watcher is an unofficial change monitor for localization projects on [Noctalia Translate](https://i18n.noctalia.dev/projects). It supports delivering additions, modifications, and deletions of source text and translations to independent Discord webhook routes.
 
-By default, the application monitors `noctalia`. Other projects such as `official-plugins` can be selected through configuration, while a systemd timer handles scheduled runs.
-
 ## Features
 
 - Run multiple monitors in one installation, each selecting its own project and Discord routes.
@@ -63,7 +61,9 @@ Today at 5:51 PM
 │   ├── config.py             # Configuration loading/validation
 │   ├── diff.py               # Multilingual ANSI differences
 │   ├── discord.py            # Discord routing and delivery
-│   └── messages.py           # YAML message loading and rendering
+│   ├── messages.py           # YAML message loading and rendering
+│   ├── monitor.py            # Monitoring policy and delivery preparation
+│   └── state.py              # SQLite checkpoints and delivery state
 ├── scripts/                  # Deployment and management scripts
 ├── systemd/                  # systemd scheduling
 ├── tests/                    # Automated tests

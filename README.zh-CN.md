@@ -4,8 +4,6 @@
 
 Noctalia i18n Watcher 是面向 [Noctalia Translate](https://i18n.noctalia.dev/projects) 本地化项目的非官方变更监控工具，支持将原文和译文的新增、修改、删除投递到多个独立 Discord Webhook 路由。
 
-默认监控 `noctalia`，修改配置即可监控 `official-plugins` 等其他项目；systemd timer 负责定时运行。
-
 ## 功能特点
 
 - 在同一实例中运行多个监听器，分别选择项目和 Discord 路由。
@@ -63,7 +61,9 @@ Obelusod
 │   ├── config.py             # 配置加载/校验
 │   ├── diff.py               # 多语言 ANSI 差异
 │   ├── discord.py            # Discord 路由与投递
-│   └── messages.py           # YAML 文案加载与渲染
+│   ├── messages.py           # YAML 文案加载与渲染
+│   ├── monitor.py            # 监听策略与投递准备
+│   └── state.py              # SQLite 基线与投递状态
 ├── scripts/                  # 部署与管理脚本
 ├── systemd/                  # systemd 定时调度
 ├── tests/                    # 自动化测试
