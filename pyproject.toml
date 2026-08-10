@@ -9,7 +9,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Obelus" }]
 dependencies = [
   "discord.py==2.7.1",
-  "noctalia-i18n-core==0.3.1",
+  "noctalia-i18n-core==0.4.0",
   "PyYAML==6.0.3",
   "requests[socks]==2.34.2",
 ]
