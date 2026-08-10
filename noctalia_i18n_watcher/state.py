@@ -117,14 +117,12 @@ def _serialize_delivery(delivery: Delivery) -> str:
     value = {
         "key": change.key,
         "locale": change.locale,
-        "actor": change.actor_login,
+        "action": change.action,
+        "actor": change.actor,
         "old_value": change.old_value,
         "new_value": change.new_value,
-        "action": change.action,
         "occurred_at": iso_timestamp(change.occurred_at),
-        "url": change.translation_url,
-        "actor_url": change.actor_url,
-        "actor_avatar_url": change.actor_avatar_url,
+        "translation_url": change.translation_url,
         "source_text": delivery.source_text,
     }
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
@@ -142,9 +140,7 @@ def _deserialize_delivery(change_id: str, raw: str) -> Delivery:
         "new_value",
         "action",
         "occurred_at",
-        "url",
-        "actor_url",
-        "actor_avatar_url",
+        "translation_url",
         "source_text",
     }
     if payload.keys() != required:
@@ -158,24 +154,21 @@ def _deserialize_delivery(change_id: str, raw: str) -> Delivery:
         action = "deleted"
     else:
         raise RuntimeError(f"Stored outbox action is invalid: {action_value!r}")
-    actor = _optional_string(payload["actor"], "Stored outbox actor")
     try:
         change = Change(
             id=change_id,
             key=_string(payload["key"], "Stored outbox key"),
             locale=_string(payload["locale"], "Stored outbox locale"),
-            actor_login=actor,
+            action=action,
+            actor=_string(payload["actor"], "Stored outbox actor"),
             old_value=_optional_string(payload["old_value"], "Stored outbox old value"),
             new_value=_optional_string(payload["new_value"], "Stored outbox new value"),
-            action=action,
             occurred_at=_parse_timestamp(
                 _string(payload["occurred_at"], "Stored outbox occurrence time"),
                 "Stored outbox occurrence time",
             ),
-            translation_url=_string(payload["url"], "Stored outbox URL"),
-            actor_url=_optional_string(payload["actor_url"], "Stored outbox actor URL"),
-            actor_avatar_url=_optional_string(
-                payload["actor_avatar_url"], "Stored outbox actor avatar URL"
+            translation_url=_string(
+                payload["translation_url"], "Stored outbox translation URL"
             ),
         )
         return Delivery(

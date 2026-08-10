@@ -92,11 +92,11 @@ class CliTests(unittest.TestCase):
                 key="settings.example",
                 locale="en",
                 action="modified",
+                actor="API",
                 old_value="Old",
                 new_value="New",
                 occurred_at=datetime(2026, 7, 29, 5, 2, 3, 120000, tzinfo=UTC),
                 translation_url="https://i18n.noctalia.dev/change",
-                actor_login=None,
             ),
         )
         with (
@@ -116,14 +116,12 @@ class CliTests(unittest.TestCase):
                     "id": "change-1",
                     "key": "settings.example",
                     "locale": "en",
+                    "action": "modified",
                     "actor": "API",
                     "old_value": "Old",
                     "new_value": "New",
-                    "action": "modified",
                     "occurred_at": "2026-07-29T05:02:03.120Z",
-                    "url": "https://i18n.noctalia.dev/change",
-                    "actor_url": None,
-                    "actor_avatar_url": None,
+                    "translation_url": "https://i18n.noctalia.dev/change",
                 }
             ],
         )

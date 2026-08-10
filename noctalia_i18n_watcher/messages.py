@@ -31,17 +31,17 @@ class MessageValues(TypedDict):
     monitor_id: str
     project: str
     key: str
-    source: str | None
-    old_value: str | None
-    new_value: str | None
     locale: str
+    action: ChangeAction
     actor: str
     actor_url: str | None
     actor_avatar_url: str | None
-    action: ChangeAction
-    change_url: str | None
     timestamp: str
     unix_time: int
+    source: str | None
+    old_value: str | None
+    new_value: str | None
+    change_url: str | None
 
 
 class _MergeValues(TypedDict):

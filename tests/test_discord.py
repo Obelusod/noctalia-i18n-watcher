@@ -77,10 +77,10 @@ def _deliveries(count: int) -> tuple[Delivery, ...]:
                 id=f"change-{index}",
                 key=f"key.{index}",
                 locale="zh-Hans",
-                actor_login="fixture",
+                action="modified",
+                actor="fixture",
                 old_value="old",
                 new_value="new",
-                action="modified",
                 occurred_at=datetime(2026, 7, 30, index, tzinfo=UTC),
                 translation_url="https://i18n.noctalia.dev/projects/noctalia/translate",
             ),
@@ -230,4 +230,5 @@ class DiscordTests(unittest.TestCase):
         self.assertEqual(len(embeds), 2)
         self.assertIn("key.0", str(embeds[0].to_dict()))
         self.assertIn("key.2", str(embeds[0].to_dict()))
+        self.assertIn("https://github.com/fixture", str(embeds[0].to_dict()))
         self.assertIn("key.1", str(embeds[1].to_dict()))

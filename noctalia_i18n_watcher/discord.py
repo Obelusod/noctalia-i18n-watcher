@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol, TypedDict
+from urllib.parse import quote
 
 import requests
 from discord import AllowedMentions, Embed, HTTPException, SyncWebhook
@@ -20,6 +21,13 @@ _STATUS_COLOR = 0x57F287
 _MAX_EMBEDS_PER_MESSAGE = 10
 _MAX_EMBED_TEXT_PER_MESSAGE = 6000
 _NO_MENTIONS = AllowedMentions.none()
+
+
+def _actor_urls(actor: str) -> tuple[str | None, str | None]:
+    if actor == "API":
+        return None, None
+    path = quote(actor, safe="")
+    return f"https://github.com/{path}", f"https://github.com/{path}.png"
 
 
 class _WebhookIdentity(TypedDict, total=False):
@@ -143,21 +151,22 @@ class DiscordRoute:
 
     def _values(self, delivery: Delivery) -> MessageValues:
         change = delivery.change
+        actor_url, actor_avatar_url = _actor_urls(change.actor)
         return MessageValues(
             monitor_id=self.monitor_id,
             project=self.project,
             key=change.key,
+            locale=change.locale,
+            action=change.action,
+            actor=change.actor,
+            actor_url=actor_url,
+            actor_avatar_url=actor_avatar_url,
+            timestamp=iso_timestamp(change.occurred_at),
+            unix_time=int(change.occurred_at.timestamp()),
             source=delivery.source_text,
             old_value=change.old_value,
             new_value=change.new_value,
-            locale=change.locale,
-            actor=change.actor_login or "API",
-            actor_url=change.actor_url,
-            actor_avatar_url=change.actor_avatar_url,
-            action=change.action,
             change_url=change.translation_url,
-            timestamp=iso_timestamp(change.occurred_at),
-            unix_time=int(change.occurred_at.timestamp()),
         )
 
 

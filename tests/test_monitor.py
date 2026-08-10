@@ -35,11 +35,11 @@ def _change(
         key=key,
         locale=locale,
         action=action,
+        actor="API",
         old_value=old,
         new_value=new,
         occurred_at=_BASE + timedelta(seconds=offset),
         translation_url="https://i18n.noctalia.dev/projects/noctalia/translate",
-        actor_login=None,
     )
 
 

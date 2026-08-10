@@ -125,14 +125,12 @@ def _change_json(change: Change) -> dict[str, object]:
         "id": change.id,
         "key": change.key,
         "locale": change.locale,
-        "actor": change.actor_login or "API",
+        "action": change.action,
+        "actor": change.actor,
         "old_value": change.old_value,
         "new_value": change.new_value,
-        "action": change.action,
         "occurred_at": iso_timestamp(change.occurred_at),
-        "url": change.translation_url,
-        "actor_url": change.actor_url,
-        "actor_avatar_url": change.actor_avatar_url,
+        "translation_url": change.translation_url,
     }
 
 

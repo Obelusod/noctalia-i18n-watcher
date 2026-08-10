@@ -53,11 +53,11 @@ def _change() -> Change:
         key="settings.example",
         locale="zh-Hans",
         action="modified",
+        actor="fixture",
         old_value="旧",
         new_value="新",
         occurred_at=datetime(2026, 7, 26, 8, 0, tzinfo=UTC),
         translation_url="https://i18n.noctalia.dev/projects/noctalia/translate",
-        actor_login="fixture",
     )
 
 

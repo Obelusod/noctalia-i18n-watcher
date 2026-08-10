@@ -21,11 +21,11 @@ def _change(identifier: str) -> Change:
         key=f"settings.{identifier}",
         locale="zh-Hans",
         action="modified",
+        actor="API",
         old_value="旧",
         new_value="新",
         occurred_at=datetime(2026, 8, 1, tzinfo=UTC),
         translation_url="https://i18n.noctalia.dev/projects/noctalia/translate",
-        actor_login=None,
     )
 
 
