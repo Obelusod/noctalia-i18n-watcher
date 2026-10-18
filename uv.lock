@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -487,14 +487,15 @@ wheels = [
 
 [[package]]
 name = "noctalia-i18n-core"
-version = "0.3.1"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
+    { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b5/5c/806a1781a9b2e5359e5a887c8ebe1a82baed797a8072926ad75d37fa2488/noctalia_i18n_core-0.3.1.tar.gz", hash = "sha256:7aab1818ebd171834c77c7ca6b5c64a46e61f3132ad25b4f71fccd9ca86e4ded", size = 26551, upload-time = "2026-08-09T14:08:00.568Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/be/211a3d996d9f1a0d0b050115121b34cab42e98a013d37271baa0bd534c0e/noctalia_i18n_core-0.4.0.tar.gz", hash = "sha256:85e161a6008bc348f56f8be17521d06ad35dabb95d85a96166b99d6e0122352b", size = 27797, upload-time = "2026-10-18T09:23:00.241Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/1d/30ba22012980b49a332d456f4d0e342e79b7ac353489f633b8a256ec0d8b/noctalia_i18n_core-0.3.1-py3-none-any.whl", hash = "sha256:80afa5705e9ce277f499697345bc3ceaabc8862b82256980c451141724b691d3", size = 17100, upload-time = "2026-08-09T14:07:59.362Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/d2/e52d6ac3159312d3bd823174817dfe182d04bb7a14c93ce206af58223005/noctalia_i18n_core-0.4.0-py3-none-any.whl", hash = "sha256:ea527c1a35962150e5f70dc95a0d8680f1bd146b61ed1912a23d68f5f81df5c4", size = 17523, upload-time = "2026-10-18T09:22:59.067Z" },
 ]
 
 [[package]]
@@ -517,7 +518,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "discord-py", specifier = "==2.7.1" },
-    { name = "noctalia-i18n-core", specifier = "==0.3.1" },
+    { name = "noctalia-i18n-core", specifier = "==0.4.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "requests", extras = ["socks"], specifier = "==2.34.2" },
 ]
