@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
-from discord import Embed
+from discord import AllowedMentions, Embed
+from discord.utils import MISSING
 from noctalia_i18n_core import Change
 
 from noctalia_i18n_watcher.config import MonitorConfig, WebhookConfig
@@ -125,7 +126,8 @@ class DiscordTests(unittest.TestCase):
         self.assertEqual(sender.embeds[0].title, "Watcher Status")
 
     def test_webhook_client_disables_mentions(self) -> None:
-        webhook = Mock()
+        send = Mock()
+        webhook = Mock(send=send)
         with (
             requests.Session() as session,
             patch(
@@ -139,15 +141,23 @@ class DiscordTests(unittest.TestCase):
             )
             client.send("primary", embeds=(Embed(description="@everyone"),))
 
-        arguments = webhook.send.call_args.kwargs
-        self.assertEqual(arguments["allowed_mentions"].to_dict(), {"parse": []})
-        self.assertNotIn("username", arguments)
-        self.assertNotIn("avatar_url", arguments)
+        send.assert_called_once()
+        call = send.call_args
+        assert call is not None
+        arguments: Mapping[str, object] = call.kwargs
+        mentions = arguments["allowed_mentions"]
+        assert isinstance(mentions, AllowedMentions)
+        self.assertEqual(mentions.to_dict(), {"parse": []})
+        self.assertIs(arguments["username"], MISSING)
+        self.assertIs(arguments["avatar_url"], MISSING)
 
     def test_webhook_errors_hide_credentials(self) -> None:
-        webhook = Mock()
-        webhook.send.side_effect = requests.ConnectionError(
-            "https://discord.com/api/webhooks/id/SECRET"
+        webhook = Mock(
+            send=Mock(
+                side_effect=requests.ConnectionError(
+                    "https://discord.com/api/webhooks/id/SECRET"
+                )
+            )
         )
         with (
             requests.Session() as session,

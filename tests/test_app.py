@@ -38,6 +38,7 @@ class _Client:
         )
 
     def iter_changes(self, *, after: str | None = None) -> Iterator[Change]:
+        del after
         yield from reversed(self.changes)
 
     def catalog(self) -> dict[str, dict[str, str]]:

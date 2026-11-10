@@ -308,8 +308,8 @@ uv sync --locked
 Run the complete test suite, or target one module while developing:
 
 ```bash
-uv run python -m unittest discover -v
-uv run python -m unittest tests.test_app -v
+uv run --locked python -m unittest discover -v
+uv run --locked python -m unittest tests.test_app -v
 ```
 
 The default suite verifies configuration, application composition, CLI behavior, message rendering, and Discord delivery contracts without accessing external services.
@@ -318,22 +318,22 @@ Explicitly verify a source against its live upstream:
 
 ```bash
 NOCTALIA_LIVE_CONFIG=config/config.json \
-  uv run python -m unittest tests.live.LiveSourceTests -v
+  uv run --locked python -m unittest tests.live.LiveSourceTests -v
 ```
 
 Send one real test notification through a temporary Discord webhook:
 
 ```bash
 NOCTALIA_TEST_WEBHOOK_URL='https://discord.com/api/webhooks/...' \
-  uv run python -m unittest tests.live.LiveDiscordTests -v
+  uv run --locked python -m unittest tests.live.LiveDiscordTests -v
 ```
 
 Check formatting, lint rules, and static types:
 
 ```bash
-uv run ruff format --check .
-uv run ruff check .
-uv run basedpyright
+uv run --locked ruff format --check .
+uv run --locked ruff check .
+uv run --locked pyrefly check
 bash -n scripts/*.sh
 ```
 

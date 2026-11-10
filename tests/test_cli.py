@@ -39,7 +39,8 @@ class CliTests(unittest.TestCase):
 
     def test_dry_run_prints_application_preview(self) -> None:
         application = MagicMock(log_level="INFO")
-        application.preview.return_value = ({"route_id": "default"},)
+        preview = MagicMock(return_value=({"route_id": "default"},))
+        application.preview = preview
         with (
             patch(
                 "noctalia_i18n_watcher.cli.Application.load",
@@ -50,11 +51,12 @@ class CliTests(unittest.TestCase):
             result = main(["deliver", "--dry-run"])
 
         self.assertEqual(result, 0)
-        application.preview.assert_called_once_with(None)
+        preview.assert_called_once_with(None)
         self.assertIn('"route_id": "default"', output.getvalue())
 
     def test_full_reset_is_forwarded_to_application(self) -> None:
-        application = MagicMock(log_level="INFO")
+        reset = MagicMock()
+        application = MagicMock(log_level="INFO", reset=reset)
         with patch(
             "noctalia_i18n_watcher.cli.Application.load",
             return_value=application,
@@ -62,14 +64,15 @@ class CliTests(unittest.TestCase):
             result = main(["reset", "full"])
 
         self.assertEqual(result, 0)
-        application.reset.assert_called_once_with("full", None, notify=False)
+        reset.assert_called_once_with("full", None, notify=False)
 
     def test_status_prints_summary(self) -> None:
         application = MagicMock(log_level="INFO")
         updated_at = datetime(2026, 7, 29, 5, 2, 3, tzinfo=UTC)
-        application.status.return_value = {
-            "noctalia": StateSummary(True, updated_at, 1, 0, 0, 0, 0)
-        }
+        status = MagicMock(
+            return_value={"noctalia": StateSummary(True, updated_at, 1, 0, 0, 0, 0)}
+        )
+        application.status = status
         with (
             patch(
                 "noctalia_i18n_watcher.cli.Application.load",
@@ -86,19 +89,22 @@ class CliTests(unittest.TestCase):
 
     def test_history_preserves_the_command_output_contract(self) -> None:
         application = MagicMock(log_level="INFO")
-        application.history.return_value = (
-            Change(
-                id="change-1",
-                key="settings.example",
-                locale="en",
-                action="modified",
-                actor="API",
-                old_value="Old",
-                new_value="New",
-                occurred_at=datetime(2026, 7, 29, 5, 2, 3, 120000, tzinfo=UTC),
-                translation_url="https://i18n.noctalia.dev/change",
-            ),
+        history = MagicMock(
+            return_value=(
+                Change(
+                    id="change-1",
+                    key="settings.example",
+                    locale="en",
+                    action="modified",
+                    actor="API",
+                    old_value="Old",
+                    new_value="New",
+                    occurred_at=datetime(2026, 7, 29, 5, 2, 3, 120000, tzinfo=UTC),
+                    translation_url="https://i18n.noctalia.dev/change",
+                ),
+            )
         )
+        application.history = history
         with (
             patch(
                 "noctalia_i18n_watcher.cli.Application.load",
@@ -128,7 +134,7 @@ class CliTests(unittest.TestCase):
 
     def test_operational_error_is_reported_without_traceback(self) -> None:
         application = MagicMock(log_level="INFO")
-        application.run.side_effect = RuntimeError("safe failure")
+        application.run = MagicMock(side_effect=RuntimeError("safe failure"))
         with (
             patch(
                 "noctalia_i18n_watcher.cli.Application.load",

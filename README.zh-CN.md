@@ -308,8 +308,8 @@ uv sync --locked
 运行全部测试，或在开发时仅运行一个模块：
 
 ```bash
-uv run python -m unittest discover -v
-uv run python -m unittest tests.test_app -v
+uv run --locked python -m unittest discover -v
+uv run --locked python -m unittest tests.test_app -v
 ```
 
 默认测试验证配置、应用装配、CLI、文案渲染和 Discord 投递契约，不访问外部服务。
@@ -318,22 +318,22 @@ uv run python -m unittest tests.test_app -v
 
 ```bash
 NOCTALIA_LIVE_CONFIG=config/config.json \
-  uv run python -m unittest tests.live.LiveSourceTests -v
+  uv run --locked python -m unittest tests.live.LiveSourceTests -v
 ```
 
 使用临时 Webhook 向 Discord 发送一条真实测试消息：
 
 ```bash
 NOCTALIA_TEST_WEBHOOK_URL='https://discord.com/api/webhooks/...' \
-  uv run python -m unittest tests.live.LiveDiscordTests -v
+  uv run --locked python -m unittest tests.live.LiveDiscordTests -v
 ```
 
 检查格式、代码规则和静态类型：
 
 ```bash
-uv run ruff format --check .
-uv run ruff check .
-uv run basedpyright
+uv run --locked ruff format --check .
+uv run --locked ruff check .
+uv run --locked pyrefly check
 bash -n scripts/*.sh
 ```
 

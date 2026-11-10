@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol, TypedDict
+from typing import Protocol
 from urllib.parse import quote
 
 import requests
 from discord import AllowedMentions, Embed, HTTPException, SyncWebhook
+from discord.utils import MISSING
 from noctalia_i18n_core import SOURCE_LOCALE, Change, ChangeAction
 
 from .config import MonitorConfig, WebhookConfig
@@ -28,11 +29,6 @@ def _actor_urls(actor: str) -> tuple[str | None, str | None]:
         return None, None
     path = quote(actor, safe="")
     return f"https://github.com/{path}", f"https://github.com/{path}.png"
-
-
-class _WebhookIdentity(TypedDict, total=False):
-    username: str
-    avatar_url: str
 
 
 class DiscordSender(Protocol):
@@ -83,15 +79,11 @@ class DiscordWebhookClient:
             raise ValueError(f"Unknown Discord route: {route_id!r}") from None
         try:
             webhook = SyncWebhook.from_url(url, session=self._session)
-            identity: _WebhookIdentity = {}
-            if username:
-                identity["username"] = username
-            if avatar_url:
-                identity["avatar_url"] = avatar_url
             webhook.send(
                 embeds=list(embeds),
                 allowed_mentions=_NO_MENTIONS,
-                **identity,
+                username=username or MISSING,
+                avatar_url=avatar_url or MISSING,
             )
         except requests.RequestException:
             raise RuntimeError("Cannot reach Discord: network failure") from None

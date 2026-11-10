@@ -75,6 +75,7 @@ class _Client:
         )
 
     def iter_changes(self, *, after: str | None = None) -> Iterator[Change]:
+        del after
         self.iter_calls += 1
         if self.anchor_error:
             raise RuntimeError("change anchor was not found")

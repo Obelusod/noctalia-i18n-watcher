@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Generator, Mapping, MutableMapping, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -41,11 +41,25 @@ class _Session(requests.Session):
     def send(
         self,
         request: requests.PreparedRequest,
+        *,
+        timeout: float | tuple[float | None, float | None] | None = None,
+        stream: bool | None = False,
+        verify: bool | str | None = True,
+        cert: str | tuple[str, str] | None = None,
+        proxies: MutableMapping[str, str] | None = None,
+        allow_redirects: bool = True,
         **kwargs: object,
     ) -> requests.Response:
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = self._timeout
-        return super().send(request, **kwargs)
+        return super().send(
+            request,
+            timeout=self._timeout if timeout is None else timeout,
+            stream=stream,
+            verify=verify,
+            cert=cert,
+            proxies=proxies,
+            allow_redirects=allow_redirects,
+            **kwargs,
+        )
 
 
 @dataclass(frozen=True, slots=True)
