@@ -297,11 +297,19 @@ class MergeTemplate:
 
         pages: list[MergePage] = []
         current: list[MessageValues] = []
+        entries: list[str] = []
+        label = f"message {self.name!r} merge"
         rendered: Embed | None = None
-        for item in values:
+        for index, item in enumerate(values):
+            scope = _render_values(
+                item, f"{label} entry {index} values", self.diff_styles
+            )
+            entry = _render_string(self.entries[item["action"]], scope)
+            if not entry:
+                raise ValueError(f"{label} entry {index} must render as non-empty text")
             candidate = (*current, item)
             try:
-                candidate_embed = self._render_page(candidate)
+                candidate_embed = self._render_page(candidate, (*entries, entry))
             except ValueError as exc:
                 if not current or rendered is None:
                     raise ValueError(
@@ -309,34 +317,26 @@ class MergeTemplate:
                     ) from exc
                 pages.append(MergePage(len(current), rendered))
                 current = [item]
+                entries = [entry]
                 try:
-                    rendered = self._render_page((item,))
+                    rendered = self._render_page((item,), entries)
                 except ValueError as single_exc:
                     raise ValueError(
                         f"Merged change cannot fit in one Discord embed: {single_exc}"
                     ) from single_exc
             else:
                 current.append(item)
+                entries.append(entry)
                 rendered = candidate_embed
 
         if current and rendered is not None:
             pages.append(MergePage(len(current), rendered))
         return tuple(pages)
 
-    def _render_page(self, values: Sequence[MessageValues]) -> Embed:
+    def _render_page(
+        self, values: Sequence[MessageValues], entries: Sequence[str]
+    ) -> Embed:
         label = f"message {self.name!r} merge"
-        entries: list[str] = []
-        for index, item in enumerate(values):
-            entry_scope = _render_values(
-                item,
-                f"{label} entry {index} values",
-                self.diff_styles,
-            )
-            rendered = _render_string(self.entries[item["action"]], entry_scope)
-            if not rendered:
-                raise ValueError(f"{label} entry {index} must render as non-empty text")
-            entries.append(rendered)
-
         actors = tuple(dict.fromkeys(item["actor"] for item in values))
         single_actor = len(actors) == 1
         actor_url = (

@@ -253,41 +253,30 @@ def _fold(
 
     selected: list[Delivery] = []
     discarded: list[str] = []
-    absent = object()
     for group in groups.values():
         ordered = sorted(group, key=lambda item: item.change.occurred_at)
         first, last = ordered[0], ordered[-1]
-        initial: object = (
-            absent if first.change.action == "added" else first.change.old_value
-        )
-        final: object = (
-            absent if last.change.action == "deleted" else last.change.new_value
-        )
+        initial = first.change.old_value
+        final = last.change.new_value
         ids = _change_ids(ordered)
-        if (initial is absent and final is absent) or initial == final:
+        if initial == final:
             discarded.extend(ids)
             continue
-        if initial is absent:
+        if initial is None:
             action: ChangeAction = "added"
-            old_value = None
-            new_value = str(final)
-        elif final is absent:
+        elif final is None:
             action = "deleted"
-            old_value = str(initial)
-            new_value = None
         else:
             action = "modified"
-            old_value = str(initial)
-            new_value = str(final)
 
         change = replace(
             last.change,
             action=action,
-            old_value=old_value,
-            new_value=new_value,
+            old_value=initial,
+            new_value=final,
         )
         if change.locale == SOURCE_LOCALE:
-            source_text = old_value if action == "deleted" else new_value
+            source_text = initial if action == "deleted" else final
         else:
             source_text = next(
                 (

@@ -93,6 +93,8 @@ class MessageTests(unittest.TestCase):
         )
 
         self.assertEqual([page.count for page in pages], [1, 1])
+        self.assertIn("first", pages[0].embed.description or "")
+        self.assertIn("second", pages[1].embed.description or "")
 
     def test_merged_author_links_a_single_actor_only(self) -> None:
         directory = Path(__file__).parents[1] / "config" / "messages" / "merge"

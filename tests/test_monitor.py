@@ -233,6 +233,30 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(delivery.change.action, "modified")
         self.assertEqual(delivery.change_ids, ("delete", "add"))
 
+    def test_folding_an_addition_and_deletion_discards_the_whole_pair(self) -> None:
+        client = _Client(
+            (_change("add", "added"), _change("delete", "deleted", offset=1))
+        )
+        route = _Route(
+            "route",
+            frozenset({"zh-Hans"}),
+            frozenset({"added", "deleted"}),
+            DeliveryPolicy(0, 0, True),
+        )
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            closing(SQLiteState(Path(directory) / "state.sqlite3")) as state,
+        ):
+            state.save(Checkpoint("noctalia", "anchor", {}))
+            result = Monitor(client, state, (route,), retention_days=180).run(
+                flush=True
+            )
+            self.assertEqual(result.deliveries, {})
+            self.assertEqual(state.pending(route.id), ())
+            checkpoint = state.load()
+            assert checkpoint is not None
+            self.assertEqual(checkpoint.change_id, "delete")
+
     def test_preview_does_not_advance_checkpoint_or_outbox(self) -> None:
         client = _Client((_change("new"),))
         route = _Route(

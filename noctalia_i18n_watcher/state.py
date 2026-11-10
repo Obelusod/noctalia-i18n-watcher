@@ -302,29 +302,31 @@ class SQLiteState:
                 self._db.execute("DELETE FROM outbox")
                 self._db.execute("DELETE FROM baseline_receipts")
             for route_id, items in deliveries.items():
-                for delivery in items:
-                    if delivery.change_ids != (delivery.change.id,):
-                        raise ValueError("Only raw deliveries can enter the outbox")
-                    self._db.execute(
-                        """
-                        INSERT OR IGNORE INTO outbox(
-                            route_id, change_id, delivery, queued_at
-                        )
-                        SELECT ?, ?, ?, ?
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM delivery_receipts
-                            WHERE route_id = ? AND change_id = ?
-                        )
-                        """,
+                if any(item.change_ids != (item.change.id,) for item in items):
+                    raise ValueError("Only raw deliveries can enter the outbox")
+                self._db.executemany(
+                    """
+                    INSERT OR IGNORE INTO outbox(
+                        route_id, change_id, delivery, queued_at
+                    )
+                    SELECT ?, ?, ?, ?
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM delivery_receipts
+                        WHERE route_id = ? AND change_id = ?
+                    )
+                    """,
+                    (
                         (
                             route_id,
-                            delivery.change.id,
-                            _serialize_delivery(delivery),
+                            item.change.id,
+                            _serialize_delivery(item),
                             queued_at,
                             route_id,
-                            delivery.change.id,
-                        ),
-                    )
+                            item.change.id,
+                        )
+                        for item in items
+                    ),
+                )
 
     def pending(self, route_id: str) -> tuple[QueuedDelivery, ...]:
         with _database_errors():
