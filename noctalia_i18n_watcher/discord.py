@@ -84,6 +84,7 @@ class DiscordWebhookClient:
                 allowed_mentions=_NO_MENTIONS,
                 username=username or MISSING,
                 avatar_url=avatar_url or MISSING,
+                wait=True,
             )
         except requests.RequestException:
             raise RuntimeError("Cannot reach Discord: network failure") from None

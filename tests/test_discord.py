@@ -150,6 +150,7 @@ class DiscordTests(unittest.TestCase):
         self.assertEqual(mentions.to_dict(), {"parse": []})
         self.assertIs(arguments["username"], MISSING)
         self.assertIs(arguments["avatar_url"], MISSING)
+        self.assertIs(arguments["wait"], True)
 
     def test_webhook_errors_hide_credentials(self) -> None:
         webhook = Mock(
